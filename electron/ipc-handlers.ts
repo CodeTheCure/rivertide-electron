@@ -486,7 +486,7 @@ export function setupIPC() {
 
   ipcMain.handle('context:checkScreenPermission', () => {
     if (!isMac) return 'granted';
-    const tmpPath = path.join(app.getPath('temp'), `opentype-perm-test-${Date.now()}.jpg`);
+    const tmpPath = path.join(app.getPath('temp'), `rivertide-perm-test-${Date.now()}.jpg`);
     try {
       execSync(`screencapture -x -t jpg "${tmpPath}"`, { timeout: 2000 });
       const size = fs.existsSync(tmpPath) ? fs.statSync(tmpPath).size : 0;

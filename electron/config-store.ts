@@ -54,7 +54,7 @@ export class ConfigStore {
   private data: AppConfig;
 
   constructor() {
-    const userDir = app?.getPath?.('userData') ?? path.join(process.env.HOME || '.', '.opentype');
+    const userDir = app?.getPath?.('userData') ?? path.join(process.env.HOME || '.', '.rivertide');
     this.filePath = path.join(userDir, 'config.json');
     const { config, changed } = this.load();
     this.data = config;

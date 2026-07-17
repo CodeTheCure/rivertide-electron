@@ -52,10 +52,10 @@ function persist(key: string, value: any) {
   if (window.electronAPI) {
     window.electronAPI.setConfig(key as keyof AppConfig, value);
   } else {
-    const stored = localStorage.getItem('opentype-config');
+    const stored = localStorage.getItem('rivertide-config');
     const obj = stored ? JSON.parse(stored) : {};
     obj[key] = value;
-    localStorage.setItem('opentype-config', JSON.stringify(obj));
+    localStorage.setItem('rivertide-config', JSON.stringify(obj));
   }
 }
 
@@ -76,7 +76,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       if (window.electronAPI) {
         stored = await window.electronAPI.getAllConfig();
       } else {
-        const raw = localStorage.getItem('opentype-config');
+        const raw = localStorage.getItem('rivertide-config');
         if (raw) stored = JSON.parse(raw);
       }
       set({ config: { ...DEFAULT_CONFIG, ...stored }, loaded: true });
@@ -237,7 +237,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     if (window.electronAPI) {
       await window.electronAPI.saveChatMessages(messages);
     } else {
-      localStorage.setItem('opentype-chat-messages', JSON.stringify(messages));
+      localStorage.setItem('rivertide-chat-messages', JSON.stringify(messages));
     }
   },
 
@@ -245,7 +245,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     if (window.electronAPI) {
       return await window.electronAPI.loadChatMessages();
     }
-    const raw = localStorage.getItem('opentype-chat-messages');
+    const raw = localStorage.getItem('rivertide-chat-messages');
     if (raw) {
       try { return JSON.parse(raw); } catch {}
     }

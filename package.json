@@ -1,5 +1,5 @@
 {
-  "name": "opentype",
+  "name": "rivertide",
   "version": "1.3.0",
   "description": "Rivertide - Intelligent voice dictation. Speak naturally, get polished text.",
   "author": {
@@ -61,6 +61,8 @@
           ]
         }
       ],
+      "identity": null,
+      "hardenedRuntime": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist"
     },

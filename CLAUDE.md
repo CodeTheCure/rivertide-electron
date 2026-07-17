@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides context for AI assistants working on the OpenType codebase.
+This file provides context for AI assistants working on the Rivertide codebase.
 
 ## Quick Start (5-min overview)
 

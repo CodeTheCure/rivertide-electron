@@ -259,7 +259,7 @@ export class WhisperService {
 
     // Write audio to temp WAV file
     const tmpDir = app.getPath('temp');
-    const wavPath = path.join(tmpDir, `opentype-${Date.now()}.wav`);
+    const wavPath = path.join(tmpDir, `rivertide-${Date.now()}.wav`);
     fs.writeFileSync(wavPath, audioBuffer);
 
     try {

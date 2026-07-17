@@ -168,7 +168,7 @@ function getClipboardText(): string {
 
 function captureScreenMac(): string | null {
   try {
-    const tmpPath = path.join(app.getPath('temp'), `opentype-ocr-${Date.now()}.jpg`);
+    const tmpPath = path.join(app.getPath('temp'), `rivertide-ocr-${Date.now()}.jpg`);
     // Capture the display containing the cursor
     execSync(`screencapture -R 0,0,0,0 -t jpg "${tmpPath}"`, { timeout: 5000 });
     // Read and compress
@@ -176,7 +176,7 @@ function captureScreenMac(): string | null {
     fs.unlinkSync(tmpPath);
     if (buf.length < 100) return null;
     // Resize to max 1280px wide
-    const resizedPath = path.join(app.getPath('temp'), `opentype-ocr-resized-${Date.now()}.jpg`);
+    const resizedPath = path.join(app.getPath('temp'), `rivertide-ocr-resized-${Date.now()}.jpg`);
     execSync(`sips --resampleWidth 1280 "${resizedPath}" --setProperty jpg 0.7`, { timeout: 3000 });
     try { fs.unlinkSync(tmpPath); } catch {}
     const resizedBuf = fs.readFileSync(resizedPath);

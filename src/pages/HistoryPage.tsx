@@ -133,7 +133,7 @@ export function HistoryPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `opentype-${new Date(item.timestamp).toISOString().slice(0, 19).replace(/:/g, '-')}.wav`;
+    a.download = `rivertide-${new Date(item.timestamp).toISOString().slice(0, 19).replace(/:/g, '-')}.wav`;
     a.click();
     URL.revokeObjectURL(url);
   };
