@@ -3,239 +3,20 @@
  * All persistent settings flow through this type system.
  */
 
-// ─── Provider Definitions ───────────────────────────────────────────────────
+// ─── Constants ──────────────────────────────────────────────────────────────
 
-export interface ProviderConfig {
-  apiKey: string;
-  baseUrl: string;
-  sttModel: string;
-  llmModel: string;
-}
+/** Groq API endpoint (hardcoded) */
+export const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 
-/** STT model mode — determines which transcription protocol to use */
-export type STTModelMode = 'batch' | 'streaming';
+/** Groq model to use for LLM post-processing */
+export const GROQ_MODEL = 'qwen/qwen3-32b';
 
-/**
- * STT protocol — determines which code path handles this model.
- * Adding a new protocol = adding a handler in stt-service.ts.
- */
-export type STTProtocol =
-  | 'openai-batch'           // POST /audio/transcriptions (multipart)
-  | 'dashscope-batch'        // POST /compatible-mode/v1/chat/completions (input_audio)
-  | 'openai-realtime'        // WSS OpenAI Realtime API
-  | 'qwen-asr-realtime'      // WSS DashScope Qwen-ASR (OpenAI-compatible)
-  | 'paraformer-realtime';   // WSS DashScope native inference (Paraformer/FunASR/Gummy)
-
-export interface STTModelDef {
-  id: string;
-  mode: STTModelMode;
-  protocol: STTProtocol;
-  label?: string;            // display label override (defaults to id)
-  sampleRate?: number;        // override for streaming (e.g., 8000 for 8k models)
-}
-
-export interface ProviderMeta {
-  id: string;
-  name: string;
-  supportsSTT: boolean;
-  supportsLLM: boolean;
-  fixedBaseUrl: boolean;   // true = hide Base URL field in UI (URL is canonical)
-  sttModels: STTModelDef[];
-  llmModels: string[];
-  vlmModels: string[];     // Vision Language Models (for screen OCR)
-  extraHeaders?: Record<string, string>;  // OpenRouter's HTTP-Referer etc.
-  defaultConfig: ProviderConfig;
-}
-
-/** Resolve STT model definition from PROVIDERS metadata */
-export function getSTTModelDef(providerId: string, modelId: string): STTModelDef | undefined {
-  const meta = PROVIDER_MAP.get(providerId);
-  return meta?.sttModels.find(m => m.id === modelId);
-}
-
-/** Resolve STT model mode from PROVIDERS metadata */
-export function getSTTModelMode(providerId: string, modelId: string): STTModelMode {
-  return getSTTModelDef(providerId, modelId)?.mode ?? 'batch';
-}
-
-/** Get the default batch protocol for a provider (used when model not in PROVIDERS list) */
-export function getDefaultBatchProtocol(providerId: string): STTProtocol {
-  const meta = PROVIDER_MAP.get(providerId);
-  const firstBatch = meta?.sttModels.find(m => m.mode === 'batch');
-  return firstBatch?.protocol ?? 'openai-batch';
-}
-
-export const PROVIDERS = [
-  {
-    id: 'siliconflow',
-    name: 'SiliconFlow',
-    supportsSTT: true,
-    supportsLLM: true,
-    fixedBaseUrl: true,
-    sttModels: [
-      { id: 'FunAudioLLM/SenseVoiceSmall', mode: 'batch', protocol: 'openai-batch' },
-    ],
-    llmModels: [
-      // ── 高性能 ──
-      'Pro/moonshotai/Kimi-K2.5',                 // 旗舰 MoE·1T 参数
-      'Pro/deepseek-ai/DeepSeek-V3.2',            // 高性能通用
-      'Pro/deepseek-ai/DeepSeek-R1',              // 深度推理
-      'Qwen/Qwen3-235B-A22B-Instruct-2507',       // Qwen 旗舰 MoE
-      // ── 轻量 ──
-      'moonshotai/Kimi-K2-Instruct-0905',         // 开源 MoE·强 Agent
-      'zai-org/GLM-4.6',                          // 中文优化·200K 上下文
-      'Qwen/Qwen3-8B',                            // 轻量·高质
-      'Qwen/Qwen2.5-7B-Instruct',                 // 经济通用
-    ],
-    vlmModels: [
-      // ── 高性能 ──
-      'Qwen/Qwen3-VL-32B-Instruct',               // 旗舰视觉
-      'Qwen/Qwen2.5-VL-72B-Instruct',
-      'Qwen/Qwen2.5-VL-32B-Instruct',
-      'zai-org/GLM-4.6V',                         // GLM 视觉
-      // ── 轻量 ──
-      'Qwen/Qwen3-VL-8B-Instruct',
-      'Pro/Qwen/Qwen2.5-VL-7B-Instruct',
-    ],
-    defaultConfig: {
-      apiKey: '',
-      baseUrl: 'https://api.siliconflow.cn/v1',
-      sttModel: 'FunAudioLLM/SenseVoiceSmall',
-      llmModel: 'Pro/deepseek-ai/DeepSeek-V3.2',
-    },
-  },
-  {
-    id: 'openrouter',
-    name: 'OpenRouter',
-    supportsSTT: false,
-    supportsLLM: true,
-    fixedBaseUrl: true,
-    sttModels: [],
-    llmModels: [
-      // ── 高性能 ──
-      'anthropic/claude-opus-4.6',               // Anthropic 旗舰
-      'google/gemini-3.1-pro',                   // Google 旗舰
-      'openai/gpt-5.2',                          // OpenAI 旗舰
-      'deepseek/deepseek-v3.2',                  // DeepSeek 高性能
-      'x-ai/grok-4-fast',                        // xAI 高速 Agent
-      // ── 轻量 ──
-      'anthropic/claude-sonnet-4.6',             // 性价比首选
-      'google/gemini-2.5-flash',                 // 快速通用
-      'openai/gpt-5-mini',                       // 轻量 GPT-5
-      'deepseek/deepseek-r1',                    // 推理·低成本
-    ],
-    vlmModels: [
-      // ── 高性能 ──
-      'google/gemini-3.1-pro',
-      'anthropic/claude-opus-4.6',
-      'openai/gpt-5.2',
-      // ── 轻量 ──
-      'google/gemini-2.5-flash',
-      'anthropic/claude-sonnet-4.6',
-    ],
-    extraHeaders: { 'HTTP-Referer': 'https://opentype.app', 'X-Title': 'OpenType' },
-    defaultConfig: {
-      apiKey: '',
-      baseUrl: 'https://openrouter.ai/api/v1',
-      sttModel: '',
-      llmModel: 'google/gemini-2.5-flash',
-    },
-  },
-  {
-    id: 'openai',
-    name: 'OpenAI',
-    supportsSTT: true,
-    supportsLLM: true,
-    fixedBaseUrl: true,
-    sttModels: [
-      { id: 'gpt-4o-transcribe', mode: 'batch', protocol: 'openai-batch' },
-      { id: 'gpt-4o-mini-transcribe', mode: 'batch', protocol: 'openai-batch' },
-      { id: 'whisper-1', mode: 'batch', protocol: 'openai-batch' },
-    ],
-    llmModels: [
-      // ── 高性能 ──
-      'gpt-5.2',                                 // 最新旗舰
-      'gpt-5',                                   // 通用旗舰
-      'o3',                                      // 最强推理
-      // ── 轻量 ──
-      'gpt-5-mini',                              // 轻量 GPT-5
-      'o3-mini',                                 // 轻量推理
-    ],
-    vlmModels: [
-      // ── 高性能 ──
-      'gpt-5.2',
-      'gpt-5',
-      // ── 轻量 ──
-      'gpt-5-mini',
-    ],
-    defaultConfig: {
-      apiKey: '',
-      baseUrl: 'https://api.openai.com/v1',
-      sttModel: 'gpt-4o-transcribe',
-      llmModel: 'gpt-5-mini',
-    },
-  },
-  {
-    id: 'dashscope',
-    name: 'DashScope (阿里云)',
-    supportsSTT: true,
-    supportsLLM: false,
-    fixedBaseUrl: true,
-    sttModels: [
-      // Qwen-ASR batch (chat/completions + input_audio)
-      { id: 'qwen3-asr-flash', mode: 'batch', protocol: 'dashscope-batch', label: 'Qwen3-ASR-Flash' },
-      // Qwen-ASR streaming (OpenAI-compatible WebSocket)
-      { id: 'qwen3-asr-flash-realtime', mode: 'streaming', protocol: 'qwen-asr-realtime' },
-      { id: 'qwen3-asr-flash-realtime-2026-02-10', mode: 'streaming', protocol: 'qwen-asr-realtime' },
-      // Paraformer/FunASR (native inference WebSocket)
-      { id: 'paraformer-realtime-v2', mode: 'streaming', protocol: 'paraformer-realtime' },
-      { id: 'fun-asr-realtime', mode: 'streaming', protocol: 'paraformer-realtime' },
-    ],
-    llmModels: [],
-    vlmModels: [],
-    defaultConfig: {
-      apiKey: '',
-      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-      sttModel: 'qwen3-asr-flash',
-      llmModel: '',
-    },
-  },
-  {
-    id: 'openai-compatible',
-    name: 'OpenAI 兼容',
-    supportsSTT: true,
-    supportsLLM: true,
-    fixedBaseUrl: false,
-    sttModels: [
-      { id: 'gpt-4o-transcribe', mode: 'batch', protocol: 'openai-batch' },
-      { id: 'gpt-4o-mini-transcribe', mode: 'batch', protocol: 'openai-batch' },
-      { id: 'whisper-1', mode: 'batch', protocol: 'openai-batch' },
-    ],
-    llmModels: [
-      'gpt-5.2',
-      'gpt-5',
-      'o3',
-      'gpt-5-mini',
-      'o3-mini',
-    ],
-    vlmModels: [
-      'gpt-5.2',
-      'gpt-5',
-      'gpt-5-mini',
-    ],
-    defaultConfig: {
-      apiKey: '',
-      baseUrl: '',
-      sttModel: 'whisper-1',
-      llmModel: '',
-    },
-  },
-] satisfies ProviderMeta[];
-
-export type STTProviderID = 'siliconflow' | 'openai' | 'openai-compatible' | 'dashscope';
-export type LLMProviderID = 'siliconflow' | 'openrouter' | 'openai' | 'openai-compatible';
-
-const PROVIDER_MAP = new Map<string, ProviderMeta>(PROVIDERS.map(p => [p.id, p]));
+/** Favourite local Whisper model (GGML format) */
+export const WHISPER_MODEL = 'ggml-small.bin';
+export const WHISPER_MODEL_DISPLAY = 'Whisper Small (GGML)';
+export const WHISPER_MODEL_URL =
+  'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin';
+export const WHISPER_MODEL_SIZE_MB = 465; // approximate, for progress display
 
 // ─── Tone Rules ─────────────────────────────────────────────────────────────
 
@@ -288,15 +69,63 @@ export interface HistoryContext {
 
   // LLM pipeline
   systemPrompt?: string;       // the system prompt sent to LLM
-  sttProvider?: string;        // which STT provider was used
-  llmProvider?: string;        // which LLM provider was used
-  sttModel?: string;           // STT model name
-  llmModel?: string;           // LLM model name
+  sttModel?: string;           // STT model name (local whisper)
+  llmModel?: string;           // LLM model name (groq)
 
   // Pipeline timing
   sttDurationMs?: number;      // how long STT took
   llmDurationMs?: number;      // how long LLM post-processing took
+}
 
+// ─── Speech Analysis ──────────────────────────────────────────────────────────
+
+/**
+ * Cognitive wellness analytics derived from dictation text.
+ *
+ * ⚠ NOT a medical diagnosis — for personal tracking only.
+ * These metrics are heuristic approximations computed via LLM analysis
+ * of transcribed speech patterns. They are not clinically validated.
+ */
+export interface SpeechAnalysis {
+  /** Aggregate wellness score 0–100 (higher = better). NOT a medical diagnosis. */
+  overallScore: number;
+
+  /** Fluency: filler words, hesitations, smoothness of delivery (0–100) */
+  fluency: number;
+  /** Lexical diversity: vocabulary richness, type-token ratio (0–100) */
+  lexicalDiversity: number;
+  /** Syntactic complexity: sentence structure variety (0–100) */
+  syntacticComplexity: number;
+  /** Coherence: topic maintenance, logical connectors (0–100) */
+  coherence: number;
+  /** Clarity: self-corrections, articulation precision (0–100) */
+  clarity: number;
+
+  /** Detailed breakdown */
+  details: {
+    fillerWordCount: number;
+    repetitionCount: number;
+    selfCorrectionCount: number;
+    avgSentenceLength: number;
+    uniqueWordRatio: number;     // type-token ratio (0–1)
+    speakingWpm: number;         // estimated words per minute
+    vocabularyLevel: 'basic' | 'intermediate' | 'advanced';
+  };
+
+  /** Trend vs personal baseline */
+  trend: {
+    direction: 'improving' | 'stable' | 'declining' | 'unknown';
+    comparisonToBaseline: number; // percentage points vs personal average
+  };
+
+  /** Unix timestamp when analysis was performed */
+  analyzedAt: number;
+
+  /**
+   * Fixed sentinel – always "NOT_A_DIAGNOSIS".
+   * Present on every analysis object as a runtime reminder.
+   */
+  disclaimer: 'NOT_A_DIAGNOSIS';
 }
 
 export interface HistoryItem {
@@ -312,9 +141,10 @@ export interface HistoryItem {
   audioPath?: string;        // file path to saved WAV audio
   error?: string;            // error message if transcription failed
   context?: HistoryContext;   // full pipeline context for detail view
+  analysis?: SpeechAnalysis;  // cognitive wellness analysis (async, may be absent initially)
 }
 
-// ─── Dictionary Entry ────────────────────────────────────────────────────────
+// ─── Dictionary Entry ───────────────────────────────────────────────────────
 
 export interface DictionaryEntry {
   word: string;
@@ -322,15 +152,37 @@ export interface DictionaryEntry {
   addedAt?: number;  // Unix timestamp ms
 }
 
+// ─── Knowledge Graph ─────────────────────────────────────────
+
+export interface KnowledgeNode {
+  id: string;
+  label: string;
+  content: string;
+  category: string;
+  source: 'manual' | 'auto-llm';
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
 // ─── Full App Config ────────────────────────────────────────────────────────
 
 export interface AppConfig {
-  // Provider selection
-  sttProvider: STTProviderID;
-  llmProvider: LLMProviderID;
+  // Speech-to-Text
+  localWhisperModelDownloaded: boolean;  // has the local whisper model been downloaded?
+  /** @deprecated Will be removed after first migration, only used to track legacy state */
+  sttProvider: string;
+  /** @deprecated Will be removed after first migration */
+  providers: Record<string, { apiKey: string; baseUrl: string; sttModel: string; llmModel: string }>;
 
-  // Provider configurations (keyed by provider id)
-  providers: Record<string, ProviderConfig>;
+  // LLM (Groq only)
+  groqApiKey: string;
 
   // General
   theme: 'system' | 'dark' | 'light';
@@ -368,58 +220,33 @@ export interface AppConfig {
   contextL0Enabled: boolean;       // L0: active window metadata
   contextL1Enabled: boolean;       // L1: selected text via Accessibility
   contextOcrEnabled: boolean;      // Screen OCR via VLM
-  contextOcrModel: string;         // VLM model for OCR
+  contextOcrModel: string;         // VLM model for OCR (still used by legacy users)
 
   // Auto-learning
   autoLearnDictionary: boolean;    // auto-add corrected terms to dictionary
 
+  // Knowledge graph auto-extraction
+  knowledgeGraphEnabled: boolean;  // auto-extract knowledge graph facts from dictations
+
+  // Onboarding
+  onboardingCompleted: boolean;    // has the user completed first-time onboarding?
+
   // Personal dictionary
   personalDictionary: DictionaryEntry[];
 
+  // Knowledge graph
+  knowledgeGraph: KnowledgeNode[];
+
   // History data
   history: HistoryItem[];
-
-}
-
-// ─── Provider Resolution Helpers ────────────────────────────────────────────
-
-export interface ProviderOpts {
-  baseUrl: string;
-  apiKey: string;
-  model: string;
-  extraHeaders?: Record<string, string>;
-}
-
-export function getProviderConfig(config: AppConfig, id: string): ProviderConfig {
-  return config.providers[id] ?? PROVIDER_MAP.get(id)?.defaultConfig ?? { apiKey: '', baseUrl: '', sttModel: '', llmModel: '' };
-}
-
-export function getSTTProviderOpts(config: AppConfig): ProviderOpts {
-  const pc = getProviderConfig(config, config.sttProvider);
-  const meta = PROVIDER_MAP.get(config.sttProvider);
-  return { baseUrl: pc.baseUrl, apiKey: pc.apiKey, model: pc.sttModel, extraHeaders: meta?.extraHeaders };
-}
-
-export function getLLMProviderOpts(config: AppConfig, provider?: LLMProviderID): ProviderOpts {
-  const pid = provider || config.llmProvider;
-  const pc = getProviderConfig(config, pid);
-  const meta = PROVIDER_MAP.get(pid);
-  return { baseUrl: pc.baseUrl, apiKey: pc.apiKey, model: pc.llmModel, extraHeaders: meta?.extraHeaders };
-}
-
-function buildDefaultProviders(): Record<string, ProviderConfig> {
-  const result: Record<string, ProviderConfig> = {};
-  for (const p of PROVIDERS) {
-    result[p.id] = { ...p.defaultConfig };
-  }
-  return result;
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
-  sttProvider: 'siliconflow',
-  llmProvider: 'siliconflow',
+  localWhisperModelDownloaded: false,
+  sttProvider: 'local',
+  providers: {},
 
-  providers: buildDefaultProviders(),
+  groqApiKey: '',
 
   theme: 'light',
   uiLanguage: 'auto',
@@ -459,11 +286,15 @@ export const DEFAULT_CONFIG: AppConfig = {
   contextL0Enabled: true,
   contextL1Enabled: false,
   contextOcrEnabled: false,
-  contextOcrModel: 'Qwen/Qwen3-VL-32B-Instruct',
+  contextOcrModel: '',
 
   autoLearnDictionary: true,
+  knowledgeGraphEnabled: true,
+  onboardingCompleted: false,
 
   personalDictionary: [],
+
+  knowledgeGraph: [],
 
   history: [],
 };

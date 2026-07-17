@@ -4,6 +4,9 @@
     "dictation": "Dictation",
     "history": "History",
     "dictionary": "Dictionary",
+    "chat": "AI Chat",
+    "knowledgeGraph": "Knowledge",
+    "analytics": "Analytics",
     "settings": "Settings",
     "lightMode": "Light mode",
     "darkMode": "Dark mode"
@@ -16,7 +19,7 @@
     "processing": "Processing...",
     "transcribing": "Transcribing & polishing your text",
     "avgSpeed": "Avg Speed",
-    "heroTitle": "Speak naturally, write perfectly — in any app",
+    "heroTitle": "Voice dictation for every app",
     "heroSubtitle": "Press {hotkey} to start and stop voice input. Or hold to say something brief.",
     "totalTime": "Total Dictation",
     "totalWords": "Words Dictated",
@@ -27,10 +30,10 @@
     "hr": "hr",
     "min": "min",
     "starProject": "Star the Project",
-    "starDesc": "If OpenType helps you, please give us a Star on GitHub to show your support.",
+    "starDesc": "If Rivertide helps you, please give us a Star on GitHub to show your support.",
     "goStar": "Go Star",
     "contribute": "Get Involved",
-    "contributeDesc": "Submit an Issue or Pull Request — let's make OpenType better together.",
+    "contributeDesc": "Submit an Issue or Pull Request — let's make Rivertide better together.",
     "viewIssues": "View Issues",
     "hotCases": "Use Cases",
     "checkUpdate": "Check for updates",
@@ -92,7 +95,7 @@
   },
   "dictionary": {
     "title": "Personal Dictionary",
-    "addPlaceholder": "Add terms (comma-separated, e.g. Kubernetes, gRPC, OpenType)",
+    "addPlaceholder": "Add terms (comma-separated, e.g. Kubernetes, gRPC, Rivertide)",
     "add": "Add",
     "noTerms": "No custom terms yet",
     "noTermsHint": "Words here help the AI spell domain-specific vocabulary correctly",
@@ -169,7 +172,10 @@
       "sttTitle": "Speech Recognition",
       "sttTooltip": "Converts your voice into raw text. This is the first step — choose a provider that supports your language.",
       "llmTitle": "LLM",
-      "llmTooltip": "Polishes transcriptions, removes fillers, applies tone rules, and powers screen context understanding (VLM)."
+      "llmTooltip": "Polishes transcriptions, removes fillers, applies tone rules, and powers screen context understanding (VLM).",
+      "modelDownloaded": "Downloaded",
+      "download": "Download",
+      "ready": "Ready"
     },
     "general": {
       "description": "Appearance, startup behavior, and input/output preferences.",
@@ -179,7 +185,7 @@
       "light": "Light",
       "system": "System",
       "launchOnStartup": "Launch on startup",
-      "launchDesc": "Automatically start OpenType when you log in",
+      "launchDesc": "Automatically start Rivertide when you log in",
       "inputMode": "Input Mode",
       "toggle": "Toggle (press to start / press to stop)",
       "pushToTalk": "Push-to-Talk (hold to record)",
@@ -226,7 +232,7 @@
       "auto": "Auto (System)"
     },
     "privacy": {
-      "privacyDesc": "OpenType stores all dictation history locally on your device. Audio is processed via API calls but is never stored by the service providers. We do not use your data to train any models.",
+      "privacyDesc": "Rivertide stores all dictation history locally on your device. Audio is processed via API calls but is never stored by the service providers. We do not use your data to train any models.",
       "saveHistory": "Save dictation history",
       "saveHistoryDesc": "When enabled, all transcriptions are saved locally for review",
       "retention": "History Retention",
@@ -238,7 +244,10 @@
       "1h": "1 hour",
       "clearAll": "Clear All Local Data",
       "clearAllHint": "Deletes all history, personal dictionary entries, and learned preferences from this device.",
-      "clearConfirm": "Clear all local data? This cannot be undone."
+      "clearConfirm": "Clear all local data? This cannot be undone.",
+      "contact": "Contact & Support",
+      "contactDesc": "Have questions or feedback? We'd love to hear from you.",
+      "contactLink": "Contact us at codethecure.app/contact"
     },
     "advanced": {
       "description": "Fine-tune the AI post-processing pipeline. Each feature can be individually enabled or disabled.",
@@ -251,11 +260,13 @@
       "selfCorrection": "Self-Correction Detection",
       "selfCorrectionDesc": "Recognize mid-sentence corrections (e.g., \"Monday—no, Tuesday\") and keep only the final intent",
       "autoFormat": "Auto Formatting",
-      "autoFormatDesc": "Add punctuation, capitalization, and organize spoken lists into structured text"
+      "autoFormatDesc": "Add punctuation, capitalization, and organize spoken lists into structured text",
+      "knowledgeGraphTitle": "Knowledge Auto-Extraction",
+      "knowledgeGraphDesc": "After each dictation, extract personal facts and add them to your knowledge for personalized AI chat responses"
     }
   },
   "context": {
-    "description": "Context awareness helps OpenType understand what you're working on for better transcription results.",
+    "description": "Context awareness helps Rivertide understand what you're working on for better transcription results.",
     "activeWindowToggle": "Detect active application",
     "activeWindowDesc": "Detect the active app (e.g. Slack, VS Code) and automatically match the writing tone to the context",
     "selectedTextToggle": "Input field awareness",
@@ -268,6 +279,73 @@
     "screenNeeded": "Screen recording permission required — click to open settings",
     "autoLearnToggle": "Auto-learn terms from transcriptions",
     "autoLearnDesc": "Detect proper nouns, brand names, and technical terms from transcriptions and add them to your dictionary automatically"
+  },
+  "analytics": {
+    "pageTitle": "Speech Analysis",
+    "pageSubtitle": "Cognitive wellness tracking — not a medical diagnosis",
+    "disclaimer": "⚠ This is not a medical diagnosis. These analytics are for personal tracking only and should not be used as a substitute for professional medical advice.",
+    "overallScore": "Wellness Score",
+    "noData": "Start dictating to see your speech analytics",
+    "goToDictation": "Go to Dictation",
+    "metrics": {
+      "fluency": "Fluency",
+      "lexicalDiversity": "Lexical Diversity",
+      "syntacticComplexity": "Complexity",
+      "coherence": "Coherence",
+      "clarity": "Clarity"
+    },
+    "details": {
+      "fillerWords": "Filler Words",
+      "repetitions": "Repetitions",
+      "selfCorrections": "Self-Corrections",
+      "avgSentenceLength": "Avg Sentence Length",
+      "vocabularyLevel": "Vocabulary Level",
+      "wpm": "Words/min",
+      "uniqueWordRatio": "Unique Word Ratio"
+    },
+    "perApp": "Per-App Breakdown",
+    "recentAnalyses": "Recent Analyses",
+    "trend": "Trend",
+    "improving": "Improving",
+    "stable": "Stable",
+    "declining": "Declining",
+    "unknown": "Insufficient Data",
+    "score": "Score",
+    "date": "Date",
+    "noAnalysesYet": "No analyses yet. Record some dictations first.",
+    "appName": "App"
+  },
+  "chat": {
+    "title": "AI Chat",
+    "placeholder": "Ask anything...",
+    "send": "Send",
+    "thinking": "Thinking...",
+    "empty": "Start a conversation! Ask me anything, and I'll use your knowledge graph to give personalized answers."
+  },
+  "knowledgeGraph": {
+    "title": "Knowledge",
+    "add": "Add Info",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "cancel": "Cancel",
+    "label": "Label",
+    "labelPlaceholder": "e.g. My favorite programming language",
+    "content": "Content",
+    "contentPlaceholder": "e.g. I primarily use TypeScript and Python",
+    "category": "Category",
+    "search": "Search info...",
+    "noNodes": "No info saved yet",
+    "noNodesHint": "Add facts about yourself — the AI chat uses this to give personalized answers.",
+    "confirmDelete": "Delete this? This cannot be undone.",
+    "cat_personal": "Personal",
+    "cat_work": "Work",
+    "cat_tech": "Tech",
+    "cat_health": "Health",
+    "cat_social": "Social",
+    "cat_other": "Other",
+    "autoExtracted": "Auto",
+    "manualAdded": "Manual"
   },
   "update": {
     "checkNow": "Check for Updates",
@@ -284,16 +362,33 @@
     "readyDesc": "Restart to complete the update.",
     "restart": "Restart Now"
   },
+  "onboarding": {
+    "title": "Welcome to Rivertide",
+    "subtitle": "Tell me a bit about yourself so I can give you better answers.",
+    "skip": "Skip",
+    "next": "Next",
+    "done": "Get Started",
+    "q1": "What's your name or how would you like to be addressed?",
+    "q1Placeholder": "e.g. Alex",
+    "q2": "Any medical diagnoses or conditions you'd like me to know about?",
+    "q2Placeholder": "e.g. ADHD, anxiety, diabetes... (optional)",
+    "q3": "What do you do for work or study?",
+    "q3Placeholder": "e.g. Software engineer, student, designer...",
+    "q4": "Anything else you'd like me to know about you?",
+    "q4Placeholder": "e.g. Languages you speak, hobbies, goals... (optional)"
+  },
   "hotkey": {
     "pressNow": "Press your shortcut now...",
     "blocked": "This combination is reserved"
   },
   "common": {
     "close": "Close",
+    "cancel": "Cancel",
     "clickToSet": "Click to set",
     "copy": "Copy",
     "delete": "Delete",
     "showPassword": "Show password",
-    "hidePassword": "Hide password"
+    "hidePassword": "Hide password",
+    "clear": "Clear"
   }
 }

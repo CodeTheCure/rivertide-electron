@@ -221,7 +221,7 @@ const dummyToneResolver = (_cfg: AppConfig, _app: string) => ({ tone: 'professio
 test('minimal config produces base rules', () => {
   const cfg = { ...DEFAULT_CONFIG, fillerWordRemoval: false, repetitionElimination: false, selfCorrectionDetection: false, autoFormatting: false };
   const prompt = buildSystemPrompt(cfg, undefined, dummyToneResolver);
-  assert.ok(prompt.includes('transcription restater'));
+  assert.ok(prompt.includes('transcription-only formatter'));
   assert.ok(prompt.includes('Fix obvious speech recognition errors'));
   // Should NOT have filler/repetition/formatting rules
   assert.ok(!prompt.includes('Remove filler'));
@@ -242,14 +242,14 @@ test('all toggles enabled adds all rules', () => {
 test('personal dictionary appears in prompt', () => {
   const cfg = { ...DEFAULT_CONFIG, personalDictionary: [{ word: 'OpenType', source: 'manual' as const }, { word: 'Zustand', source: 'auto-llm' as const }] };
   const prompt = buildSystemPrompt(cfg, undefined, dummyToneResolver);
-  assert.ok(prompt.includes('Hot Word Table'));
+  assert.ok(prompt.includes('Personal Dictionary'));
   assert.ok(prompt.includes('OpenType'));
   assert.ok(prompt.includes('Zustand'));
 });
 
-test('empty dictionary omits hot word section', () => {
+test('empty dictionary omits personal dictionary section', () => {
   const prompt = buildSystemPrompt(DEFAULT_CONFIG, undefined, dummyToneResolver);
-  assert.ok(!prompt.includes('Hot Word Table'));
+  assert.ok(!prompt.includes('Personal Dictionary'));
 });
 
 test('context app name triggers tone', () => {
@@ -278,7 +278,7 @@ test('clipboard text included and truncated', () => {
 test('screen context from OCR included', () => {
   const ctx = { screenContext: 'User is editing a spreadsheet with sales data' } as any;
   const prompt = buildSystemPrompt(DEFAULT_CONFIG, ctx, dummyToneResolver);
-  assert.ok(prompt.includes('Screen context (from OCR)'));
+  assert.ok(prompt.includes('Screen context:'));
   assert.ok(prompt.includes('spreadsheet'));
 });
 

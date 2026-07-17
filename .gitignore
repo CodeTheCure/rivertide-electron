@@ -11,3 +11,6 @@ Thumbs.db
 .env
 .env.local
 .claude/
+
+# Compiled native binaries (source tracked in native/*.swift)
+native/fn-monitor

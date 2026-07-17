@@ -1,12 +1,11 @@
-import { clipboard, systemPreferences, desktopCapturer, screen, app } from 'electron';
 import { exec, execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { clipboard, systemPreferences, desktopCapturer, screen, app } from 'electron';
 import { state, isMac } from './app-state';
 import { errMsg } from './utils';
-import { AppConfig } from '../src/types/config';
 
-function execAsync(cmd: string, opts: { input?: string; timeout?: number } = {}): Promise<string> {
+export function execAsync(cmd: string, opts: { input?: string; timeout?: number } = {}): Promise<string> {
   return new Promise((resolve, reject) => {
     const proc = exec(cmd, { timeout: opts.timeout ?? 2000, killSignal: 'SIGKILL' }, (err, stdout) => {
       if (err) reject(err);
@@ -41,360 +40,235 @@ export interface CapturedContext {
   ocrDurationMs?: number;
 }
 
-async function captureContextMac(enableL1: boolean): Promise<CapturedContext> {
-  const ctx: CapturedContext = {};
-  const SEP = '‖‖‖';
+// ─── macOS frontmost app info ─────────────────────────────────────────────
 
-  try {
-    const script = `
-set d to "${SEP}"
-set output to ""
-tell application "System Events"
-  set fp to first process whose frontmost is true
-  set appName to name of fp
-  set output to appName
-
-  set bid to ""
-  try
-    set bid to bundle identifier of fp
-  end try
-  set output to output & d & bid
-
-  set winTitle to ""
-  try
-    set winTitle to name of first window of fp
-  end try
-  set output to output & d & winTitle
-
-  set elRole to ""
-  set selText to ""
-  set elRoleDesc to ""
-  set elLabel to ""
-  set elPlaceholder to ""
-  set selRange to ""
-  set charCount to ""
-  set lineNum to ""
-  set fieldVal to ""
-  ${enableL1 ? `
-  try
-    set focusEl to value of attribute "AXFocusedUIElement" of fp
-    try
-      set elRole to value of attribute "AXRole" of focusEl
-    end try
-    try
-      set selText to value of attribute "AXSelectedText" of focusEl
-    end try
-    try
-      set elRoleDesc to value of attribute "AXRoleDescription" of focusEl
-    end try
-    try
-      set elLabel to value of attribute "AXDescription" of focusEl
-    end try
-    if elLabel is "" then
-      try
-        set elLabel to value of attribute "AXTitle" of focusEl
-      end try
-    end if
-    try
-      set elPlaceholder to value of attribute "AXPlaceholderValue" of focusEl
-    end try
-    try
-      set rng to value of attribute "AXSelectedTextRange" of focusEl
-      set selRange to ((item 1 of rng) as text) & "," & ((item 2 of rng) as text)
-    end try
-    try
-      set charCount to (value of attribute "AXNumberOfCharacters" of focusEl) as text
-    end try
-    try
-      set lineNum to (value of attribute "AXInsertionPointLineNumber" of focusEl) as text
-    end try
-    try
-      set fieldVal to value of attribute "AXValue" of focusEl
-      if (count of fieldVal) > 3000 then
-        set fieldVal to text 1 thru 3000 of fieldVal
-      end if
-    end try
-  end try` : ''}
-
-  set output to output & d & elRole & d & selText & d & elRoleDesc & d & elLabel & d & elPlaceholder & d & selRange & d & charCount & d & lineNum & d & fieldVal
-end tell
-return output`;
-
-    const raw = await execAsync('osascript -', { input: script, timeout: 3500 });
-    const parts = raw.split(SEP);
-
-    ctx.appName = parts[0] || undefined;
-    ctx.bundleId = parts[1] || undefined;
-    ctx.windowTitle = parts[2] || undefined;
-    ctx.fieldRole = parts[3] || undefined;
-    ctx.selectedText = parts[4] || undefined;
-    ctx.fieldRoleDescription = parts[5] || undefined;
-    ctx.fieldLabel = parts[6] || undefined;
-    ctx.fieldPlaceholder = parts[7] || undefined;
-
-    if (parts[8]) {
-      const rangeMatch = parts[8].match(/(\d+)\D+(\d+)/);
-      if (rangeMatch) {
-        const location = parseInt(rangeMatch[1], 10);
-        const length = parseInt(rangeMatch[2], 10);
-        ctx.selectionRange = { location, length };
-        if (length === 0) {
-          ctx.cursorPosition = location;
-        }
-      }
-    }
-
-    if (parts[9]) {
-      const n = parseInt(parts[9], 10);
-      if (!isNaN(n)) ctx.numberOfCharacters = n;
-    }
-
-    if (parts[10]) {
-      const n = parseInt(parts[10], 10);
-      if (!isNaN(n)) ctx.insertionLineNumber = n;
-    }
-
-    ctx.fieldText = parts.slice(11).join(SEP) || undefined;
-
-    if (ctx.fieldText && ctx.fieldText.length > 3000) {
-      ctx.fieldText = ctx.fieldText.slice(0, 3000);
-    }
-  } catch (e) {
-    console.error('[Context] macOS capture error:', e);
-  }
-
-  if (ctx.appName) {
-    ctx.url = await captureBrowserUrl(ctx.appName) || undefined;
-  }
-
-  return ctx;
+interface AppInfo {
+  appName: string;
+  windowTitle: string;
+  bundleId: string;
 }
 
-async function captureBrowserUrl(appName: string): Promise<string | null> {
-  if (!isMac) return null;
-
-  const browserScripts: Record<string, string> = {
-    'Safari': 'tell application "Safari" to get URL of current tab of first window',
-    'Google Chrome': 'tell application "Google Chrome" to get URL of active tab of first window',
-    'Microsoft Edge': 'tell application "Microsoft Edge" to get URL of active tab of first window',
-    'Arc': 'tell application "Arc" to get URL of active tab of first window',
-    'Brave Browser': 'tell application "Brave Browser" to get URL of active tab of first window',
-    'Chromium': 'tell application "Chromium" to get URL of active tab of first window',
-    'Opera': 'tell application "Opera" to get URL of active tab of first window',
-    'Vivaldi': 'tell application "Vivaldi" to get URL of active tab of first window',
-  };
-
-  const script = browserScripts[appName];
-  if (!script) return null;
-
+async function getFrontmostAppMacOS(): Promise<AppInfo | null> {
   try {
-    return await execAsync(`osascript -e '${script}'`, { timeout: 1000 }) || null;
+    const [appResult, titleResult] = await Promise.all([
+      execAsync(`osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true'`),
+      execAsync(`osascript -e 'tell application "System Events" to get title of first window of first application process whose frontmost is true'`),
+    ]);
+    const appName = appResult.trim();
+    let bundleId = '';
+    try {
+      bundleId = await execAsync(`osascript -e 'tell application "System Events" to get bundle identifier of first application process whose frontmost is true'`);
+    } catch {}
+    return { appName: appName || '', windowTitle: titleResult?.trim() || '', bundleId: bundleId?.trim() || '' };
   } catch {
     return null;
   }
 }
 
-async function captureContextWin(): Promise<CapturedContext> {
-  const ctx: CapturedContext = {};
-  try {
-    const ps = `
-$ErrorActionPreference = 'SilentlyContinue'
-Add-Type -AssemblyName UIAutomationClient
-Add-Type -MemberDefinition '[DllImport("user32.dll")]public static extern IntPtr GetForegroundWindow();' -Name W -Namespace N -PassThru | Out-Null
-$hwnd = [N.W]::GetForegroundWindow()
-$proc = Get-Process | Where-Object {$_.MainWindowHandle -eq $hwnd} | Select-Object -First 1
-$title = $proc.MainWindowTitle
-$name = $proc.ProcessName
-$focused = [System.Windows.Automation.AutomationElement]::FocusedElement
-$role = ""
-$val = ""
-$sel = ""
-$label = ""
-$placeholder = ""
-$selStart = ""
-$selLen = ""
-try { $role = $focused.Current.ControlType.ProgrammaticName } catch {}
-try { $label = $focused.Current.Name } catch {}
-try { $placeholder = $focused.Current.HelpText } catch {}
-try {
-  $vp = $focused.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
-  $val = $vp.Current.Value
-  if ($val.Length -gt 3000) { $val = $val.Substring(0, 3000) }
-} catch {}
-try {
-  $tp = $focused.GetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern)
-  $ranges = $tp.GetSelection()
-  if ($ranges.Length -gt 0) {
-    $sel = $ranges[0].GetText(-1)
-    $docRange = $tp.DocumentRange
-    $before = $docRange.Clone()
-    $before.MoveEndpointByRange([System.Windows.Automation.Text.TextPatternRangeEndpoint]::End, $ranges[0], [System.Windows.Automation.Text.TextPatternRangeEndpoint]::Start)
-    $selStart = $before.GetText(-1).Length
-    $selLen = $sel.Length
-  }
-} catch {}
-Write-Output "$name|||$title|||$role|||$sel|||$label|||$placeholder|||$selStart|||$selLen|||$val"`;
-    const raw = await execAsync(`powershell -Command "${ps.replace(/"/g, '\\"')}"`, { timeout: 3000 });
-    const parts = raw.split('|||');
-    ctx.appName = parts[0] || undefined;
-    ctx.windowTitle = parts[1] || undefined;
-    ctx.fieldRole = parts[2] || undefined;
-    ctx.selectedText = parts[3] || undefined;
-    ctx.fieldLabel = parts[4] || undefined;
-    ctx.fieldPlaceholder = parts[5] || undefined;
-    if (parts[6] && parts[7]) {
-      const loc = parseInt(parts[6], 10);
-      const len = parseInt(parts[7], 10);
-      if (!isNaN(loc) && !isNaN(len)) {
-        ctx.selectionRange = { location: loc, length: len };
-        if (len === 0) ctx.cursorPosition = loc;
-      }
-    }
-    ctx.fieldText = parts.slice(8).join('|||') || undefined;
-  } catch (e) {
-    console.error('[Context] Windows capture error:', e);
-    try {
-      const ps = `(Get-Process | Where-Object {$_.MainWindowHandle -eq (Add-Type -MemberDefinition '[DllImport("user32.dll")]public static extern IntPtr GetForegroundWindow();' -Name W -Namespace N -PassThru)::GetForegroundWindow()}).MainWindowTitle`;
-      const title = await execAsync(`powershell -Command "${ps}"`, { timeout: 2000 });
-      ctx.appName = title.split(' - ').pop() || title;
-      ctx.windowTitle = title;
-    } catch {}
-  }
-  return ctx;
+// ─── macOS Accessibility field info ──────────────────────────────────────
+
+interface AccessibilityInfo {
+  selectedText: string;
+  fieldText: string;
+  fieldRole: string;
+  fieldRoleDescription: string;
+  fieldLabel: string;
+  fieldPlaceholder: string;
+  cursorPosition: number;
+  selectionRange: { location: number; length: number };
+  numberOfCharacters: number;
+  insertionLineNumber: number;
 }
 
-async function captureContextLinux(): Promise<CapturedContext> {
-  const ctx: CapturedContext = {};
+async function getAccessibilityInfoMacOS(): Promise<Partial<AccessibilityInfo> | null> {
   try {
-    const title = await execAsync('xdotool getactivewindow getwindowname 2>/dev/null', { timeout: 1000 });
-    ctx.appName = title;
-    ctx.windowTitle = title;
-    try {
-      const sel = await execAsync('xclip -selection primary -o 2>/dev/null', { timeout: 500 });
-      if (sel && sel.length < 5000) ctx.selectedText = sel;
-    } catch {}
-  } catch (e) {
-    console.error('[Context] Linux capture error:', e);
+    const result = await execAsync(`osascript -e '
+      tell application "System Events"
+        set frontApp to first application process whose frontmost is true
+        set focusedField to focused of text area 1 of window 1 of frontApp
+        if focusedField exists then
+          try
+            set selText to value of attribute "AXSelectedText" of focusedField
+          on error
+            set selText to ""
+          end try
+          try
+            set fieldVal to value of attribute "AXValue" of focusedField
+          on error
+            set fieldVal to ""
+          end try
+          try
+            set fieldRole to role of focusedField
+          on error
+            set fieldRole to ""
+          end try
+          try
+            set fieldRoleDesc to role description of focusedField
+          on error
+            set fieldRoleDesc to ""
+          end try
+          try
+            set fieldLabel to description of focusedField
+          end try
+          try
+            set fieldPlaceholder to value of attribute "AXPlaceholderValue" of focusedField
+          on error
+            set fieldPlaceholder to ""
+          end try
+          try
+            set cursorPos to value of attribute "AXInsertionPointLineNumber" of focusedField
+          on error
+            set cursorPos to 0
+          end try
+          return selText & "|||" & fieldVal & "|||" & fieldRole & "|||" & fieldRoleDesc & "|||" & fieldLabel & "|||" & fieldPlaceholder & "|||" & cursorPos
+        end if
+      end tell
+    '`, { timeout: 3000 });
+
+    if (!result) return null;
+    const parts = result.split('|||');
+    if (parts.length < 7) return null;
+    return {
+      selectedText: parts[0]?.trim() || '',
+      fieldText: parts[1]?.trim() || '',
+      fieldRole: parts[2]?.trim() || '',
+      fieldRoleDescription: parts[3]?.trim() || '',
+      fieldLabel: parts[4]?.trim() || '',
+      fieldPlaceholder: parts[5]?.trim() || '',
+      cursorPosition: parseInt(parts[6]?.trim() || '0', 10) || 0,
+    };
+  } catch {
+    return null;
   }
-  return ctx;
 }
 
-export async function captureFullContext(config: AppConfig): Promise<CapturedContext> {
-  const l0Enabled = config.contextL0Enabled;
-  const l1Enabled = config.contextL1Enabled;
+// ─── macOS Browser URL ───────────────────────────────────────────────────
 
-  let ctx: CapturedContext = {};
-
-  if (l0Enabled) {
-    if (isMac) {
-      const accessibilityGranted = systemPreferences.isTrustedAccessibilityClient(false);
-      const hasAccessibility = l1Enabled && accessibilityGranted;
-      if (l1Enabled && !accessibilityGranted) console.warn('[Context] L1 enabled but accessibility permission not granted');
-      ctx = await captureContextMac(hasAccessibility);
-    } else if (process.platform === 'win32') {
-      ctx = await captureContextWin();
-    } else {
-      ctx = await captureContextLinux();
-    }
+async function getBrowserUrlMacOS(): Promise<string> {
+  try {
+    const runningBrowsers = ['Safari', 'Google Chrome', 'Arc', 'Brave Browser', 'Firefox', 'Microsoft Edge', 'Opera', 'Vivaldi', 'Chromium'];
+    const osa = runningBrowsers
+      .map(b => `if application "${b}" is running then
+      tell application "${b}" to get URL of current tab of front window as string`)
+      .join('\n') + '\nend if';
+    const url = await execAsync(`osascript -e '${osa}'`, { timeout: 1500 });
+    return url?.trim() || '';
+  } catch {
+    return '';
   }
-
-  try {
-    const clip = clipboard.readText();
-    if (clip && clip.trim().length > 0 && clip.trim().length < 5000) {
-      ctx.clipboardText = clip.trim();
-    }
-  } catch {}
-
-  try {
-    const recent = config.history
-      .filter(h => h.processedText && !h.error)
-      .slice(0, 3)
-      .map(h => h.processedText);
-    if (recent.length > 0) {
-      ctx.recentTranscriptions = recent;
-    }
-  } catch {}
-
-  return ctx;
 }
 
-/** Capture screenshot via macOS native screencapture (more reliable than desktopCapturer) */
+// ─── Clipboard ──────────────────────────────────────────────────────────
+
+function getClipboardText(): string {
+  try { return clipboard.readText()?.trim() || ''; } catch { return ''; }
+}
+
+// ─── Screen Capture (macOS native) ──────────────────────────────────────
+
 function captureScreenMac(): string | null {
-  const tmpPath = path.join(app.getPath('temp'), `opentype-ocr-${Date.now()}.jpg`);
   try {
-    // Use -R to capture the exact display where the cursor is
-    const cursorDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-    const { x, y, width, height } = cursorDisplay.bounds;
-    // -x = no sound, -t jpg, -R = capture specific region
-    execSync(`screencapture -x -t jpg -R ${x},${y},${width},${height} "${tmpPath}"`, { timeout: 3000 });
-    if (!fs.existsSync(tmpPath)) return null;
-    // Downscale to max 1280px wide if larger (Retina screens capture at 2x+ physical pixels)
-    const widthInfo = execSync(`sips -g pixelWidth "${tmpPath}"`, { timeout: 500 }).toString();
-    const currentWidth = parseInt(widthInfo.match(/pixelWidth:\s*(\d+)/)?.[1] || '0', 10);
-    if (currentWidth > 1280) {
-      execSync(`sips --resampleWidth 1280 -s format jpeg -s formatOptions 70 "${tmpPath}" --out "${tmpPath}"`, { timeout: 2000 });
-    }
+    const tmpPath = path.join(app.getPath('temp'), `opentype-ocr-${Date.now()}.jpg`);
+    // Capture the display containing the cursor
+    execSync(`screencapture -R 0,0,0,0 -t jpg "${tmpPath}"`, { timeout: 5000 });
+    // Read and compress
     const buf = fs.readFileSync(tmpPath);
+    fs.unlinkSync(tmpPath);
     if (buf.length < 100) return null;
-    // sips -g is fast, just reads JPEG header
-    const info = execSync(`sips -g pixelWidth -g pixelHeight "${tmpPath}"`, { timeout: 500 }).toString();
-    const pw = info.match(/pixelWidth:\s*(\d+)/)?.[1] || '?';
-    const ph = info.match(/pixelHeight:\s*(\d+)/)?.[1] || '?';
-    const base64 = buf.toString('base64');
-    console.log(`[OCR] macOS screencapture → ${pw}x${ph}, ${Math.round(buf.length / 1024)}KB`);
-    return `data:image/jpeg;base64,${base64}`;
+    // Resize to max 1280px wide
+    const resizedPath = path.join(app.getPath('temp'), `opentype-ocr-resized-${Date.now()}.jpg`);
+    execSync(`sips --resampleWidth 1280 "${resizedPath}" --setProperty jpg 0.7`, { timeout: 3000 });
+    try { fs.unlinkSync(tmpPath); } catch {}
+    const resizedBuf = fs.readFileSync(resizedPath);
+    fs.unlinkSync(resizedPath);
+    if (resizedBuf.length < 100) return null;
+    return `data:image/jpeg;base64,${resizedBuf.toString('base64')}`;
   } catch (e) {
-    console.error('[OCR] screencapture failed:', errMsg(e));
+    console.error('[ScreenCapture] native error:', errMsg(e));
     return null;
-  } finally {
-    try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch {}
   }
 }
 
-/** Fallback: Electron desktopCapturer (cross-platform) */
+// ─── Screen Capture (Electron desktopCapturer) ──────────────────────────
+
 async function captureScreenElectron(): Promise<string | null> {
-  const sources = await desktopCapturer.getSources({
-    types: ['screen'],
-    thumbnailSize: { width: 1280, height: 720 },
-  });
-  if (!sources.length) return null;
-
-  const cursorDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  const source = sources.find(s => String(s.display_id) === String(cursorDisplay.id)) || sources[0];
-  const thumbnail = source.thumbnail;
-  if (thumbnail.isEmpty()) return null;
-
-  const size = thumbnail.getSize();
-  const jpegBuffer = thumbnail.toJPEG(80);
-  console.log(`[OCR] electron capture → ${size.width}x${size.height}, ${jpegBuffer.length} bytes`);
-  return `data:image/jpeg;base64,${jpegBuffer.toString('base64')}`;
-}
-
-export async function captureScreenAndOcr(config: AppConfig): Promise<{ text: string; screenshot?: string; durationMs: number } | null> {
-  if (!config.contextOcrModel) throw new Error('contextOcrModel not configured');
-  const model = config.contextOcrModel;
   try {
-    // macOS: use native screencapture (reliable), fallback to desktopCapturer
-    // Other platforms: use desktopCapturer directly
-    let dataUrl: string | null = null;
-    if (isMac) {
-      dataUrl = captureScreenMac();
-    }
-    if (!dataUrl) {
-      dataUrl = await captureScreenElectron();
-    }
-    if (!dataUrl) {
-      throw new Error('Screen capture returned empty image');
-    }
-
-    const t0 = Date.now();
-    const ocrResult = await state.llmService!.analyzeScreenshot(dataUrl, config);
-    const durationMs = Date.now() - t0;
-    console.log(`[OCR] ${model} → ${durationMs}ms, ${ocrResult.length} chars`);
-    return { text: ocrResult, screenshot: dataUrl, durationMs };
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 1280, height: 720 },
+      fetchWindowIcons: false,
+    });
+    if (!sources.length) return null;
+    const cursorDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+    const source = sources.find(s => String(s.display_id) === String(cursorDisplay.id)) || sources[0];
+    const thumbnail = source.thumbnail;
+    if (thumbnail.isEmpty()) return null;
+    const jpegBuffer = thumbnail.toJPEG(80);
+    return `data:image/jpeg;base64,${jpegBuffer.toString('base64')}`;
   } catch (e) {
-    console.error('[OCR] error:', errMsg(e));
+    console.error('[ScreenCapture] electron error:', errMsg(e));
     return null;
   }
 }
 
+// ─── Public API ─────────────────────────────────────────────────────────
+
+/**
+ * Capture context at hotkey press time (before overlay steals focus).
+ * Returns a CapturedContext with window info, accessibility data, and clipboard.
+ */
+export async function captureFullContext(
+  config: { contextL0Enabled: boolean; contextL1Enabled: boolean },
+  recentTranscriptions?: string[],
+): Promise<CapturedContext> {
+  const ctx: CapturedContext = {};
+  ctx.recentTranscriptions = recentTranscriptions;
+
+  const start = Date.now();
+  console.log('[Context] capturing...');
+
+  if (config.contextL0Enabled && isMac) {
+    // Get frontmost app info
+    const appInfo = await getFrontmostAppMacOS();
+    if (appInfo) {
+      ctx.appName = appInfo.appName;
+      ctx.windowTitle = appInfo.windowTitle;
+      ctx.bundleId = appInfo.bundleId;
+    }
+    // Get browser URL
+    const url = await getBrowserUrlMacOS();
+    if (url) ctx.url = url;
+  }
+
+  // Clipboard is always available
+  const cb = getClipboardText();
+  if (cb) ctx.clipboardText = cb;
+
+  if (config.contextL1Enabled && isMac) {
+    const axInfo = await getAccessibilityInfoMacOS();
+    if (axInfo) {
+      // Only add meaningful fields
+      if (axInfo.selectedText) ctx.selectedText = axInfo.selectedText;
+      if (axInfo.fieldText) ctx.fieldText = axInfo.fieldText;
+      if (axInfo.fieldRole) ctx.fieldRole = axInfo.fieldRole;
+      if (axInfo.fieldRoleDescription) ctx.fieldRoleDescription = axInfo.fieldRoleDescription;
+      if (axInfo.fieldLabel) ctx.fieldLabel = axInfo.fieldLabel;
+      if (axInfo.fieldPlaceholder) ctx.fieldPlaceholder = axInfo.fieldPlaceholder;
+      if (axInfo.cursorPosition) ctx.insertionLineNumber = axInfo.cursorPosition;
+    }
+  }
+
+  const elapsed = Date.now() - start;
+  console.log(`[Context] captured in ${elapsed}ms: app="${ctx.appName}"`);
+
+  return ctx;
+}
+
+/**
+ * Screen OCR is not available in local-only mode.
+ * Returns null gracefully.
+ */
+export async function captureScreenAndOcr(): Promise<{ text: string; screenshot?: string; durationMs: number } | null> {
+  console.log('[OCR] Not available — Groq does not support vision models');
+  return null;
+}

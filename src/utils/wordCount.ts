@@ -30,7 +30,7 @@ export function countWords(text: string): number {
 
 /**
  * Format word count with appropriate unit for display.
- * Returns e.g. "123 字" for Chinese, "45 words" for English, "20 字 + 5 words" for mixed.
+ * Returns e.g. "123 chars" for Chinese, "45 words" for English, "20 chars + 5 words" for mixed.
  */
 export function formatWordCount(text: string): { count: number; cjk: number; latin: number } {
   if (!text?.trim()) return { count: 0, cjk: 0, latin: 0 };

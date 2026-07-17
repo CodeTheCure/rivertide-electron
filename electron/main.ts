@@ -1,7 +1,7 @@
 import {
   app, BrowserWindow, globalShortcut,
   session, systemPreferences, Menu,
-  protocol, net,
+  protocol, net, nativeImage,
 } from 'electron';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -132,6 +132,13 @@ app.whenReady().then(() => {
       { label: 'Settings', click: () => { state.mainWindow?.show(); state.mainWindow?.focus(); state.mainWindow?.webContents.send('navigate', 'settings'); } },
     ]);
     app.dock.setMenu(dockMenu);
+    // Override dock icon in dev mode (defaults to Electron atom icon otherwise)
+    if (isDev) {
+      try {
+        const iconPath = path.join(__dirname, '../../public/icon.png');
+        app.dock.setIcon(nativeImage.createFromPath(iconPath));
+      } catch {}
+    }
   }
 
   app.on('activate', () => {

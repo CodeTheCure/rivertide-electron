@@ -1,7 +1,7 @@
 {
   "name": "opentype",
   "version": "1.3.0",
-  "description": "OpenType - Intelligent voice dictation. Speak naturally, get polished text.",
+  "description": "Rivertide - Intelligent voice dictation. Speak naturally, get polished text.",
   "author": {
     "name": "WEIFENG2333",
     "email": "liangweifeng@bytedance.com"
@@ -30,11 +30,12 @@
     "check": "npm run typecheck && npm test"
   },
   "build": {
-    "appId": "com.opentype.app",
-    "productName": "OpenType",
+    "appId": "com.rivertide.app",
+    "productName": "Rivertide",
     "directories": {
       "output": "release"
     },
+    "icon": "build/icon.png",
     "files": [
       "dist/**/*",
       "dist-electron/**/*"
@@ -50,6 +51,7 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
+      "icon": "build/icon.png",
       "target": [
         {
           "target": "dmg",
@@ -63,6 +65,7 @@
       "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "win": {
+      "icon": "build/icon.png",
       "target": [
         {
           "target": "nsis",
@@ -73,6 +76,7 @@
       ]
     },
     "linux": {
+      "icon": "build/icon.png",
       "target": [
         {
           "target": "AppImage",
@@ -96,8 +100,8 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "WEIFENG2333",
-      "repo": "OpenType"
+      "owner": "CodeTheCure",
+      "repo": "rivertide-electron"
     }
   },
   "dependencies": {

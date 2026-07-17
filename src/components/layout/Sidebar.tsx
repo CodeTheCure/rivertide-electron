@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useConfigStore } from '../../stores/configStore';
 import { useTranslation } from '../../i18n';
+import logoSrc from '../../assets/logo.png';
 
-export type PageID = 'dashboard' | 'dictation' | 'history' | 'dictionary';
+export type PageID = 'dashboard' | 'dictation' | 'history' | 'dictionary' | 'chat' | 'knowledgeGraph' | 'analytics';
 
 interface SidebarProps {
   current: PageID;
@@ -30,12 +32,29 @@ const navItems: Array<{ id: PageID; i18nKey: string; icon: JSX.Element }> = [
     i18nKey: 'sidebar.dictionary',
     icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>,
   },
+  {
+    id: 'chat',
+    i18nKey: 'sidebar.chat',
+    icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+  },
+  {
+    id: 'knowledgeGraph',
+    i18nKey: 'sidebar.knowledgeGraph',
+    icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2a10 10 0 0 1 10 10"/><path d="M2 12a10 10 0 0 1 10-10"/><path d="M2 12a10 10 0 0 0 10 10"/><path d="M12 22a10 10 0 0 0 10-10"/></svg>,
+  },
+  {
+    id: 'analytics',
+    i18nKey: 'sidebar.analytics',
+    icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>,
+  },
 ];
 
 export function Sidebar({ current, onNavigate, onOpenSettings }: SidebarProps) {
   const theme = useConfigStore((s) => s.config.theme);
   const set = useConfigStore((s) => s.set);
   const { t } = useTranslation();
+  const [collapsed, setCollapsed] = useState(false);
+  const [logoHovered, setLogoHovered] = useState(false);
 
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark';
@@ -44,16 +63,50 @@ export function Sidebar({ current, onNavigate, onOpenSettings }: SidebarProps) {
   const isDark = theme === 'dark';
 
   return (
-    <div className="w-[200px] bg-surface-50 dark:bg-surface-950 border-r border-surface-200 dark:border-surface-800/60 flex flex-col">
-      {/* Brand */}
-      <div className="px-5 pt-5 pb-4">
-        <span className="text-[17px] font-bold text-surface-900 dark:text-surface-100 tracking-tight">
-          OpenType
-        </span>
+    <div className={`flex flex-col border-r border-surface-200 dark:border-surface-800/60 bg-surface-50 dark:bg-surface-950 transition-all duration-200 ${collapsed ? 'w-[60px]' : 'w-[200px]'}`}>
+      {/* Brand + collapse toggle (click logo to collapse, hover shows arrow) */}
+      <div className="relative px-3 pt-5 pb-4">
+        <div
+          onClick={() => setCollapsed(!collapsed)}
+          onMouseEnter={() => setLogoHovered(true)}
+          onMouseLeave={() => setLogoHovered(false)}
+          className={`flex items-center cursor-pointer select-none rounded-xl transition-all duration-150
+            ${collapsed ? 'justify-center mx-auto' : 'gap-2.5 pl-5'}
+            ${logoHovered ? 'bg-surface-100 dark:bg-surface-800/50' : ''}
+            py-2 -mx-1 px-3`}
+        >
+          <img src={logoSrc} className={`w-6 h-6 rounded shrink-0 ${logoHovered ? 'opacity-90' : ''}`} alt="" />
+          {!collapsed && (
+            <>
+              <span className="text-[17px] font-bold text-surface-900 dark:text-surface-100 tracking-tight">
+                Rivertide
+              </span>
+              {/* Collapse arrow — only visible on hover */}
+              <span
+                className={`ml-auto transition-all duration-150 ease-out
+                  ${logoHovered ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-1'}
+                  text-surface-400`}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <path d="M15 10l-4 4-4-4" />
+                </svg>
+              </span>
+            </>
+          )}
+          {collapsed && logoHovered && (
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-5 h-8 flex items-center justify-center">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-surface-400">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 space-y-0.5">
+      <nav className="flex-1 px-2 space-y-0.5">
         {navItems.map((item) => {
           const active = current === item.id;
           return (
@@ -61,20 +114,22 @@ export function Sidebar({ current, onNavigate, onOpenSettings }: SidebarProps) {
               key={item.id}
               onClick={() => onNavigate(item.id)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] transition-all duration-150
+                ${collapsed ? 'justify-center' : ''}
                 ${active
                   ? 'bg-brand-500/10 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300 font-semibold'
                   : 'text-surface-500 hover:text-surface-800 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-850'
                 }`}
+              title={collapsed ? t(item.i18nKey) : undefined}
             >
-              {item.icon}
-              <span>{t(item.i18nKey)}</span>
+              <span className={collapsed ? '' : 'shrink-0'}>{item.icon}</span>
+              {!collapsed && <span>{t(item.i18nKey)}</span>}
             </button>
           );
         })}
       </nav>
 
       {/* Bottom icons */}
-      <div className="px-3 py-3 border-t border-surface-200 dark:border-surface-800/40 flex items-center gap-1">
+      <div className={`px-2 py-3 border-t border-surface-200 dark:border-surface-800/40 flex items-center gap-1 ${collapsed ? 'flex-col' : ''}`}>
         <button
           onClick={onOpenSettings}
           className="w-9 h-9 flex items-center justify-center rounded-lg text-surface-400 hover:text-surface-700 dark:hover:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800/60 transition-colors"

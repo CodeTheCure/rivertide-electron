@@ -7,6 +7,10 @@ import { DashboardPage } from './pages/DashboardPage';
 import { DictationPage } from './pages/DictationPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { DictionaryPage } from './pages/DictionaryPage';
+import { ChatPage } from './pages/ChatPage';
+import { KnowledgeGraphPage } from './pages/KnowledgeGraphPage';
+import { AnalyticsPage } from './pages/AnalyticsPage';
+import { OnboardingPage } from './pages/OnboardingPage';
 import { SettingsModal } from './pages/settings/SettingsLayout';
 import { OverlayPage } from './pages/OverlayPage';
 import { UpdateNotification } from './components/UpdateNotification';
@@ -79,12 +83,24 @@ export default function App() {
     );
   }
 
+  // Show onboarding if not completed
+  if (!useConfigStore.getState().config.onboardingCompleted) {
+    return (
+      <div className="h-screen flex flex-col bg-white dark:bg-surface-950">
+        <OnboardingPage onComplete={() => window.location.reload()} />
+      </div>
+    );
+  }
+
   const renderPage = () => {
     switch (page) {
       case 'dashboard': return <DashboardPage onNavigate={(p) => setPage(p as PageID)} />;
       case 'dictation': return <DictationPage />;
       case 'history': return <HistoryPage />;
       case 'dictionary': return <DictionaryPage />;
+      case 'chat': return <ChatPage />;
+      case 'knowledgeGraph': return <KnowledgeGraphPage />;
+      case 'analytics': return <AnalyticsPage />;
     }
   };
 

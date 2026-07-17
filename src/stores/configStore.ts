@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { AppConfig, DEFAULT_CONFIG, DictionaryEntry, HistoryItem } from '../types/config';
+import { AppConfig, DEFAULT_CONFIG, DictionaryEntry, HistoryItem, KnowledgeNode, ChatMessage } from '../types/config';
 
 interface ConfigStore {
   config: AppConfig;
@@ -23,11 +23,29 @@ interface ConfigStore {
   /** Delete a single history item */
   deleteHistoryItem: (id: string) => void;
 
+  /** Update fields of an existing history item in-place */
+  updateHistoryItem: (id: string, updates: Partial<HistoryItem>) => void;
+
   /** Add a word to personal dictionary */
   addDictionaryWord: (word: string, source?: DictionaryEntry['source']) => void;
 
   /** Remove a word from personal dictionary */
   removeDictionaryWord: (word: string) => void;
+
+  /** Add a knowledge graph node */
+  addKnowledgeNode: (node: { label: string; content: string; category: string; source?: KnowledgeNode['source'] }) => void;
+
+  /** Update a knowledge graph node */
+  updateKnowledgeNode: (id: string, updates: Partial<Pick<KnowledgeNode, 'label' | 'content' | 'category'>>) => void;
+
+  /** Remove a knowledge graph node */
+  removeKnowledgeNode: (id: string) => void;
+
+  /** Save chat messages to persistent storage */
+  saveChatMessages: (messages: ChatMessage[]) => void;
+
+  /** Load chat messages from persistent storage */
+  loadChatMessages: () => Promise<ChatMessage[]>;
 }
 
 function persist(key: string, value: any) {
@@ -83,6 +101,18 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
           }),
         );
       }
+
+      // Listen for auto-extracted knowledge graph nodes from main process
+      if (window.electronAPI?.onKnowledgeGraphUpdated) {
+        ipcCleanups.push(
+          window.electronAPI.onKnowledgeGraphUpdated(async () => {
+            const kg = await window.electronAPI!.getConfig('knowledgeGraph');
+            if (Array.isArray(kg)) {
+              set((state) => ({ config: { ...state.config, knowledgeGraph: kg } }));
+            }
+          }),
+        );
+      }
     } catch (e) {
       console.error('[ConfigStore] load failed:', e);
       set({ loaded: true });
@@ -134,6 +164,16 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     });
   },
 
+  updateHistoryItem: (id: string, updates: Partial<HistoryItem>) => {
+    set((state) => {
+      const history = state.config.history.map((item) =>
+        item.id === id ? { ...item, ...updates } : item
+      );
+      persist('history', history);
+      return { config: { ...state.config, history } };
+    });
+  },
+
   addDictionaryWord: (word: string, source: DictionaryEntry['source'] = 'manual') => {
     set((state) => {
       const trimmed = word.trim();
@@ -157,5 +197,58 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       persist('personalDictionary', dict);
       return { config: { ...state.config, personalDictionary: dict } };
     });
+  },
+
+  addKnowledgeNode: (node) => {
+    set((state) => {
+      const now = Date.now();
+      const entry: KnowledgeNode = {
+        id: now.toString(36) + Math.random().toString(36).slice(2, 6),
+        ...node,
+        source: node.source || 'manual',
+        createdAt: now,
+        updatedAt: now,
+      };
+      const kg = [...state.config.knowledgeGraph, entry];
+      persist('knowledgeGraph', kg);
+      return { config: { ...state.config, knowledgeGraph: kg } };
+    });
+  },
+
+  updateKnowledgeNode: (id, updates) => {
+    set((state) => {
+      const kg = state.config.knowledgeGraph.map((node) =>
+        node.id === id ? { ...node, ...updates, updatedAt: Date.now() } : node,
+      );
+      persist('knowledgeGraph', kg);
+      return { config: { ...state.config, knowledgeGraph: kg } };
+    });
+  },
+
+  removeKnowledgeNode: (id) => {
+    set((state) => {
+      const kg = state.config.knowledgeGraph.filter((node) => node.id !== id);
+      persist('knowledgeGraph', kg);
+      return { config: { ...state.config, knowledgeGraph: kg } };
+    });
+  },
+
+  saveChatMessages: async (messages) => {
+    if (window.electronAPI) {
+      await window.electronAPI.saveChatMessages(messages);
+    } else {
+      localStorage.setItem('opentype-chat-messages', JSON.stringify(messages));
+    }
+  },
+
+  loadChatMessages: async () => {
+    if (window.electronAPI) {
+      return await window.electronAPI.loadChatMessages();
+    }
+    const raw = localStorage.getItem('opentype-chat-messages');
+    if (raw) {
+      try { return JSON.parse(raw); } catch {}
+    }
+    return [];
   },
 }));

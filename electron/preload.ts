@@ -23,11 +23,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   suspendShortcuts: () => ipcRenderer.invoke('shortcuts:suspend'),
   resumeShortcuts: () => ipcRenderer.invoke('shortcuts:resume'),
 
+  // Whisper model management
+  whisperIsDownloaded: () => ipcRenderer.invoke('whisper:isDownloaded'),
+  whisperIsDownloading: () => ipcRenderer.invoke('whisper:isDownloading'),
+  whisperModelSize: () => ipcRenderer.invoke('whisper:modelSize'),
+  whisperIsBinaryAvailable: () => ipcRenderer.invoke('whisper:isBinaryAvailable'),
+  whisperStartDownload: () => ipcRenderer.invoke('whisper:startDownload'),
+  whisperCancelDownload: () => ipcRenderer.invoke('whisper:cancelDownload'),
+
   // STT
   transcribe: (buf: ArrayBuffer, opts?: { language?: string }) => ipcRenderer.invoke('stt:transcribe', buf, opts),
 
   // LLM
   processText: (text: string, ctx?: any) => ipcRenderer.invoke('llm:process', text, ctx),
+
+  // Speech Analysis
+  analyzeSpeech: (params: { rawText: string; processedText: string; durationMs: number }) => ipcRenderer.invoke('analysis:analyze', params),
 
   // Full pipeline
   processPipeline: (buf: ArrayBuffer) => ipcRenderer.invoke('pipeline:process', buf),
@@ -48,9 +59,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   hideOverlay: () => ipcRenderer.invoke('window:hideOverlay'),
   resizeOverlay: (w: number, h: number) => ipcRenderer.invoke('window:resizeOverlay', w, h),
 
-  // API testing
-  testAPI: (provider: string) => ipcRenderer.invoke('api:test', provider),
-  testVLM: () => ipcRenderer.invoke('api:testVLM'),
+  // Groq API test
+  testGroqConnection: () => ipcRenderer.invoke('groq:testConnection'),
+
+  // STT test
+  testSTTConnection: () => ipcRenderer.invoke('stt:testConnection'),
 
   // Auto updater
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
@@ -79,6 +92,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => { ipcRenderer.removeAllListeners('updater:error'); };
   },
 
+  // Chat
+  sendChatMessage: (message: string, history: Array<{ role: string; content: string }>) => ipcRenderer.invoke('chat:send', message, history),
+  saveChatMessages: (messages: Array<unknown>) => ipcRenderer.invoke('chat:history:save', messages),
+  loadChatMessages: () => ipcRenderer.invoke('chat:history:load'),
+
+  // Shell
+  showItemInFolder: (filePath: string) => ipcRenderer.invoke('shell:showItemInFolder', filePath),
+
   // Context awareness
   getLastContext: () => ipcRenderer.invoke('context:getLastContext'),
   checkAccessibility: () => ipcRenderer.invoke('context:checkAccessibility'),
@@ -87,13 +108,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openScreenPrefs: () => ipcRenderer.invoke('context:openScreenPrefs'),
   captureAndOcr: () => ipcRenderer.invoke('context:captureAndOcr'),
 
-  // STT test
-  testSTTConnection: () => ipcRenderer.invoke('stt:testConnection'),
-
-  // Realtime STT
-  startRealtimeSTT: () => ipcRenderer.invoke('stt:startRealtime'),
-  sendAudioChunk: (pcm16Base64: string) => ipcRenderer.invoke('stt:sendAudio', pcm16Base64),
-  cancelRealtimeSTT: () => ipcRenderer.invoke('stt:cancelRealtime'),
+  // Whisper download progress events
+  onWhisperDownloadProgress: (cb: (percent: number) => void) => {
+    ipcRenderer.on('whisper:download-progress', (_e, percent) => cb(percent));
+    return () => { ipcRenderer.removeAllListeners('whisper:download-progress'); };
+  },
 
   // Pipeline streaming events
   onSttDelta: (cb: (data: { delta: string; accumulated: string }) => void) => {
@@ -117,6 +136,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onDictionaryAutoAdded: (cb: (words: string[]) => void) => {
     ipcRenderer.on('dictionary:auto-added', (_e, words) => cb(words));
     return () => { ipcRenderer.removeAllListeners('dictionary:auto-added'); };
+  },
+  onKnowledgeGraphUpdated: (cb: (nodes: unknown[]) => void) => {
+    ipcRenderer.on('knowledgeGraph:auto-added', (_e, nodes) => cb(nodes));
+    return () => { ipcRenderer.removeAllListeners('knowledgeGraph:auto-added'); };
   },
   onFnKeyEvent: (cb: (event: string) => void) => {
     ipcRenderer.on('fn-key-event', (_e, event) => cb(event));

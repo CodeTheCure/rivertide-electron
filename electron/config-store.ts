@@ -3,16 +3,6 @@ import path from 'path';
 import { app } from 'electron';
 import { AppConfig, DEFAULT_CONFIG } from '../src/types/config';
 
-// ─── Migration logic (exported for testing) ──────────────────────────────────
-
-const OLD_PREFIXES: Record<string, { prefix: string; hasStt: boolean; hasLlm: boolean }> = {
-  siliconflow: { prefix: 'siliconflow', hasStt: true, hasLlm: true },
-  openrouter:  { prefix: 'openrouter', hasStt: false, hasLlm: true },
-  openai:      { prefix: 'openai', hasStt: true, hasLlm: true },
-  dashscope:   { prefix: 'dashscope', hasStt: true, hasLlm: false },
-  'openai-compatible': { prefix: 'compatible', hasStt: true, hasLlm: true },
-};
-
 /**
  * Apply all migrations to a raw config object. Returns { config, changed }.
  * Pure function — no side effects, no file I/O.
@@ -30,25 +20,28 @@ export function migrateConfig(raw: any): { config: AppConfig; changed: boolean }
     changed = true;
   }
 
-  // Migration 2: flat provider fields → providers map
-  if (!result.providers || typeof result.providers !== 'object' || Array.isArray(result.providers)) {
-    result.providers = { ...DEFAULT_CONFIG.providers };
-  }
-  for (const [id, info] of Object.entries(OLD_PREFIXES)) {
-    const oldKey = result[`${info.prefix}ApiKey`];
-    if (oldKey === undefined) continue;
+  // Migration 2: old provider fields → simplified config
+  // If old sttProvider was set and not 'local', mark as migrated
+  if (result.sttProvider && result.sttProvider !== 'local') {
+    result.sttProvider = 'local';
     changed = true;
-    const existing = result.providers[id] || DEFAULT_CONFIG.providers[id] || { apiKey: '', baseUrl: '', sttModel: '', llmModel: '' };
-    result.providers[id] = {
-      apiKey: result[`${info.prefix}ApiKey`] ?? existing.apiKey,
-      baseUrl: result[`${info.prefix}BaseUrl`] ?? existing.baseUrl,
-      sttModel: info.hasStt ? (result[`${info.prefix}SttModel`] ?? existing.sttModel) : existing.sttModel,
-      llmModel: info.hasLlm ? (result[`${info.prefix}LlmModel`] ?? existing.llmModel) : existing.llmModel,
-    };
-    delete result[`${info.prefix}ApiKey`];
-    delete result[`${info.prefix}BaseUrl`];
-    if (info.hasStt) delete result[`${info.prefix}SttModel`];
-    if (info.hasLlm) delete result[`${info.prefix}LlmModel`];
+  }
+
+  // Migration 3: remove old providers record if it exists but is complex
+  if (result.providers && typeof result.providers === 'object') {
+    // Clear old provider configs to free space
+    const hasOldData = Object.keys(result.providers).length > 0;
+    if (hasOldData) {
+      result.providers = {};
+      changed = true;
+    }
+  }
+
+  // Migration 4: rename cerebrasApiKey → groqApiKey
+  if (result.cerebrasApiKey && !result.groqApiKey) {
+    result.groqApiKey = result.cerebrasApiKey;
+    delete result.cerebrasApiKey;
+    changed = true;
   }
 
   return { config: result, changed };
@@ -76,7 +69,6 @@ export class ConfigStore {
       }
     } catch (e) {
       console.error('[ConfigStore] load error — attempting backup recovery:', e);
-      // Try to recover from backup
       const bakPath = this.filePath + '.bak';
       try {
         if (fs.existsSync(bakPath)) {
@@ -95,11 +87,9 @@ export class ConfigStore {
     try {
       const dir = path.dirname(this.filePath);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      // Write to temp file first, then rename (atomic on most filesystems)
       const tmpPath = this.filePath + '.tmp';
       const json = JSON.stringify(this.data, null, 2);
       fs.writeFileSync(tmpPath, json, 'utf-8');
-      // Backup current config before overwriting
       if (fs.existsSync(this.filePath)) {
         try { fs.copyFileSync(this.filePath, this.filePath + '.bak'); } catch {}
       }

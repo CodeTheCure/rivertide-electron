@@ -29,12 +29,12 @@ export function RecordButton({ status, audioLevel, duration, onClick }: RecordBu
         <button
           onClick={onClick}
           disabled={status === 'processing'}
-          className={`relative z-10 w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 shadow-md
+          className={`relative z-10 w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200
             ${status === 'recording'
-              ? 'bg-red-500 hover:bg-red-600 shadow-red-500/20'
+              ? 'bg-red-500 hover:bg-red-600'
               : status === 'processing'
               ? 'bg-surface-200 dark:bg-surface-700 cursor-wait'
-              : 'bg-brand-500 hover:bg-brand-600 shadow-brand-500/20 hover:scale-105 active:scale-95'
+              : 'bg-brand-500 hover:bg-brand-600 hover:scale-105 active:scale-95'
             }`}
         >
           {status === 'recording' ? (

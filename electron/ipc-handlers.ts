@@ -1,4 +1,4 @@
-import { app, ipcMain, clipboard, globalShortcut, systemPreferences, screen } from 'electron';
+import { app, ipcMain, clipboard, globalShortcut, systemPreferences, screen, shell } from 'electron';
 import { exec, execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -9,28 +9,24 @@ import { registerShortcuts, toggleRecording } from './shortcut-manager';
 import { captureScreenAndOcr } from './context-capture';
 import { restartFnMonitor } from './fn-monitor';
 import { schedulePostPipelineExtraction, recordTypedText } from './auto-dict';
+import { schedulePostPipelineKG } from './knowledge-graph-extractor';
 import { restoreSystemAudio } from './audio-control';
-import type { IRealtimeSession } from './stt-service';
-import { AppConfig, getSTTProviderOpts, getLLMProviderOpts, LLMProviderID } from '../src/types/config';
+import { GROQ_MODEL } from '../src/types/config';
 
 // ─── Module state ───────────────────────────────────────────────────────────
 
 let pipelineRunning = false;
 let pipelineStartedAt = 0;
-let realtimeSession: IRealtimeSession | null = null;
-let audioChunkCount = 0;
-const PIPELINE_TIMEOUT_MS = 60_000; // 60s safety valve
+const PIPELINE_TIMEOUT_MS = 60_000;
 
 export function setupIPC() {
-  // Config
-  ipcMain.handle('config:get', (_e, key: keyof AppConfig) => state.configStore!.get(key));
-  ipcMain.handle('config:set', (event, key: keyof AppConfig, val: any) => {
-    state.configStore!.set(key, val);
-    // Sync launch-on-startup with OS when setting changes
+  // ─── Config ──────────────────────────────────────────────────────────────
+  ipcMain.handle('config:get', (_e, key: string) => state.configStore!.get(key as any));
+  ipcMain.handle('config:set', (event, key: string, val: any) => {
+    state.configStore!.set(key as any, val);
     if (key === 'launchOnStartup') {
       app.setLoginItemSettings({ openAtLogin: !!val });
     }
-    // Broadcast history changes to all OTHER windows so they stay in sync
     if (key === 'history') {
       const senderId = event.sender.id;
       for (const win of [state.mainWindow, state.overlayWindow]) {
@@ -43,11 +39,51 @@ export function setupIPC() {
   });
   ipcMain.handle('config:getAll', () => state.configStore!.getAll());
 
-  // Media file storage (audio / screenshots)
+  // ─── Whisper Model Management ────────────────────────────────────────────
+
+  ipcMain.handle('whisper:isDownloaded', () => {
+    return state.sttService!.getWhisperService().isModelDownloaded();
+  });
+
+  ipcMain.handle('whisper:isDownloading', () => {
+    return state.sttService!.getWhisperService().isDownloading();
+  });
+
+  ipcMain.handle('whisper:modelSize', () => {
+    return state.sttService!.getWhisperService().modelFileSize();
+  });
+
+  ipcMain.handle('whisper:isBinaryAvailable', () => {
+    return state.sttService!.getWhisperService().isBinaryAvailable();
+  });
+
+  ipcMain.handle('whisper:startDownload', async (event) => {
+    const ws = state.sttService!.getWhisperService();
+    try {
+      await ws.downloadModel((percent) => {
+        // Broadcast progress to all windows
+        const msg = { type: 'whisper:downloadProgress', percent };
+        state.mainWindow?.webContents.send('whisper:download-progress', percent);
+        state.overlayWindow?.webContents.send('whisper:download-progress', percent);
+      });
+      // Update config to mark model as downloaded
+      state.configStore!.set('localWhisperModelDownloaded' as any, true);
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message || String(e) };
+    }
+  });
+
+  ipcMain.handle('whisper:cancelDownload', () => {
+    state.sttService!.getWhisperService().cancelDownload();
+    return true;
+  });
+
+  // ─── Media file storage ─────────────────────────────────────────────────
+
   const mediaDir = path.join(app.getPath('userData'), 'media');
   if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
 
-  // Security: validate all file paths are under mediaDir to prevent directory traversal
   const mediaDirResolved = path.resolve(mediaDir);
   function assertMediaPath(filePath: string): string {
     const resolved = path.resolve(filePath);
@@ -58,7 +94,7 @@ export function setupIPC() {
   }
 
   ipcMain.handle('media:save', (_e, filename: string, base64: string) => {
-    const safeName = path.basename(filename); // strip any path components
+    const safeName = path.basename(filename);
     const filePath = path.join(mediaDir, safeName);
     assertMediaPath(filePath);
     fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
@@ -78,22 +114,18 @@ export function setupIPC() {
     return true;
   });
 
-  // Microphone permission
+  // ─── Microphone permission ──────────────────────────────────────────────
   ipcMain.handle('mic:checkPermission', async () => {
-    if (isMac) {
-      return systemPreferences.getMediaAccessStatus('microphone');
-    }
+    if (isMac) return systemPreferences.getMediaAccessStatus('microphone');
     return 'granted';
   });
 
   ipcMain.handle('mic:requestPermission', async () => {
-    if (isMac) {
-      return systemPreferences.askForMediaAccess('microphone');
-    }
+    if (isMac) return systemPreferences.askForMediaAccess('microphone');
     return true;
   });
 
-  // Shortcuts re-registration (hotkey config changed — force restart fn monitor)
+  // ─── Shortcuts ──────────────────────────────────────────────────────────
   ipcMain.handle('shortcuts:reregister', () => {
     restartFnMonitor(toggleRecording, registerShortcuts);
     registerShortcuts();
@@ -112,105 +144,26 @@ export function setupIPC() {
     return true;
   });
 
-  // STT
+  // ─── STT ────────────────────────────────────────────────────────────────
   ipcMain.handle('stt:transcribe', async (_e, buf: ArrayBuffer, opts?: { language?: string }) => {
     try {
       const text = await state.sttService!.transcribe(Buffer.from(buf), state.configStore!.getAll(), opts);
-      console.log('[STT] result:', text.slice(0, 100));
       return { success: true, text };
     } catch (e) {
-      console.error('[STT] error:', errMsg(e));
       return { success: false, error: errMsg(e) };
     }
   });
 
-  // STT test connection (works for all providers including DashScope WebSocket)
+  // STT test
   ipcMain.handle('stt:testConnection', async () => {
     try {
-      const cfg = state.configStore!.getAll();
-      return await state.sttService!.testConnection(cfg);
+      return await state.sttService!.testConnection();
     } catch (e) {
       return { success: false, error: errMsg(e) };
     }
   });
 
-  // Realtime STT
-  ipcMain.handle('stt:startRealtime', async () => {
-    try {
-      const cfg = state.configStore!.getAll();
-      if (!state.sttService!.supportsStreaming(cfg)) {
-        const model = getSTTProviderOpts(cfg).model;
-        console.log(`[RealtimeSTT] skipped — model "${model}" is non-streaming, will use batch`);
-        return { success: false, error: 'non-streaming' };
-      }
-      // Close any existing session
-      if (realtimeSession) {
-        realtimeSession.close();
-        realtimeSession = null;
-      }
-      audioChunkCount = 0;
-      // Create + connect in a local variable to avoid race with cancelRealtime
-      const session = state.sttService!.createRealtimeSession(cfg);
-      const sampleRate = session.sampleRate;
-      const overlayWC = state.overlayWindow?.webContents;
-      session.onDelta = (delta, accumulated) => {
-        if (overlayWC && !overlayWC.isDestroyed()) {
-          overlayWC.send('pipeline:stt-delta', { delta, accumulated });
-        }
-      };
-      session.onError = (error) => {
-        console.error('[RealtimeSTT] error:', error);
-        if (overlayWC && !overlayWC.isDestroyed()) {
-          overlayWC.send('pipeline:phase', 'error');
-        }
-      };
-      await session.connect();
-      // If user cancelled during connect, don't publish the session
-      if (!state.isRecording) {
-        session.close();
-        return { success: false, error: 'cancelled' };
-      }
-      realtimeSession = session;
-      return { success: true, sampleRate };
-    } catch (e) {
-      console.error('[RealtimeSTT] start failed:', errMsg(e));
-      return { success: false, error: errMsg(e) };
-    }
-  });
-
-  ipcMain.handle('stt:sendAudio', (_e, pcm16Base64: string) => {
-    if (!realtimeSession) return;
-    audioChunkCount++;
-    if (audioChunkCount === 1) {
-      console.log(`[RealtimeSTT] first audio chunk, len=${pcm16Base64.length}`);
-    }
-    realtimeSession.sendAudio(pcm16Base64);
-  });
-
-  ipcMain.handle('stt:cancelRealtime', () => {
-    if (realtimeSession) {
-      realtimeSession.close();
-      realtimeSession = null;
-    }
-    // Ensure system audio is restored when recording is cancelled (e.g. overlay X button)
-    if (state.isRecording) {
-      state.isRecording = false;
-      const cfg = state.configStore!.getAll();
-      if (cfg.muteSystemAudio) {
-        restoreSystemAudio();
-      }
-    }
-  });
-
-  // LLM
-  ipcMain.handle('llm:process', async (_e, text: string, ctx?: Record<string, unknown>) => {
-    try {
-      const result = await state.llmService!.process(text, state.configStore!.getAll(), ctx);
-      return { success: true, text: result.text };
-    } catch (e) {
-      return { success: false, error: errMsg(e) };
-    }
-  });
+  // ─── Pipeline ───────────────────────────────────────────────────────────
 
   // Resolve context: wait for contextPromise + ocrPromise, merge OCR results
   async function resolveContext() {
@@ -234,77 +187,55 @@ export function setupIPC() {
     return state.lastCapturedContext;
   }
 
-  // Helper: send phase updates to overlay
   function sendPhase(phase: string) {
     const wc = state.overlayWindow?.webContents;
     if (wc && !wc.isDestroyed()) wc.send('pipeline:phase', phase);
   }
 
-  // Pipeline: STT runs in parallel with context/OCR resolution
   ipcMain.handle('pipeline:process', async (_e, buf: ArrayBuffer) => {
-    // Safety valve: if previous pipeline has been stuck for too long, force unlock
     if (pipelineRunning && Date.now() - pipelineStartedAt > PIPELINE_TIMEOUT_MS) {
-      console.warn('[Pipeline] force-unlocking stale pipeline lock after', Math.round((Date.now() - pipelineStartedAt) / 1000), 's');
+      console.warn('[Pipeline] force-unlocking stale pipeline');
       pipelineRunning = false;
     }
     if (pipelineRunning) return { success: false, rawText: '', processedText: '', error: 'Pipeline busy' };
     pipelineRunning = true;
     pipelineStartedAt = Date.now();
     const cfg = state.configStore!.getAll();
-    const sttProvider = cfg.sttProvider;
-    const llmProvider = cfg.llmProvider;
-    const sttModel = getSTTProviderOpts(cfg).model;
-    const llmModel = getLLMProviderOpts(cfg).model;
 
     let sttDurationMs = 0;
     let llmDurationMs = 0;
-    const overlayWC = state.overlayWindow?.webContents;
 
     try {
       let raw: string;
       let ctx: import('./context-capture').CapturedContext;
 
-      if (realtimeSession) {
-        // ── Realtime streaming mode ──
-        // STT already happened via WebSocket during recording.
-        // Commit and wait for final transcript.
-        console.log('[Pipeline] Realtime STT commit + context resolve');
-        sendPhase('stt');
-        const sttStart = Date.now();
-        const [sttText, resolvedCtx] = await Promise.all([
-          realtimeSession.commit(),
-          resolveContext(),
-        ]);
-        raw = sttText;
-        ctx = resolvedCtx;
-        sttDurationMs = Date.now() - sttStart;
-        realtimeSession.close();
-        realtimeSession = null;
-        console.log('[Pipeline] Realtime STT final in', sttDurationMs, 'ms:', raw.slice(0, 100));
-      } else {
-        // ── Batch mode (non-streaming) ──
-        sendPhase('stt');
-        console.log('[Pipeline] STT via', sttProvider, sttModel);
-        const sttStart = Date.now();
-        const [sttText, resolvedCtx] = await Promise.all([
-          state.sttService!.transcribe(Buffer.from(buf), cfg),
-          resolveContext(),
-        ]);
-        raw = sttText;
-        ctx = resolvedCtx;
-        sttDurationMs = Date.now() - sttStart;
-        console.log('[Pipeline] STT done in', sttDurationMs, 'ms:', raw.slice(0, 100));
+      // ── Batch mode (local Whisper) ──
+      sendPhase('stt');
+      console.log('[Pipeline] Local Whisper STT');
+      const sttStart = Date.now();
+      const [sttText, resolvedCtx] = await Promise.all([
+        state.sttService!.transcribe(Buffer.from(buf), cfg),
+        resolveContext(),
+      ]);
+      raw = sttText;
+      ctx = resolvedCtx;
+      sttDurationMs = Date.now() - sttStart;
+      console.log('[Pipeline] STT done in', sttDurationMs, 'ms:', raw.slice(0, 100));
 
-        // For non-streaming: send the full STT text so overlay can display it
-        if (overlayWC && !overlayWC.isDestroyed() && raw.trim()) {
-          overlayWC.send('pipeline:stt-delta', { delta: raw, accumulated: raw });
-        }
+      // Send STT text to overlay
+      const overlayWC = state.overlayWindow?.webContents;
+      if (overlayWC && !overlayWC.isDestroyed() && raw.trim()) {
+        overlayWC.send('pipeline:stt-delta', { delta: raw, accumulated: raw });
       }
 
       if (!raw.trim()) {
         state.isRecording = false;
         sendPhase('done');
-        return { success: true, rawText: '', processedText: '', skipped: true, sttProvider, llmProvider, sttModel, llmModel, sttDurationMs, llmDurationMs };
+        return {
+          success: true, rawText: '', processedText: '', skipped: true,
+          sttModel: 'Local Whisper', llmModel: GROQ_MODEL,
+          sttDurationMs, llmDurationMs,
+        };
       }
 
       let processedText = raw;
@@ -312,16 +243,19 @@ export function setupIPC() {
 
       if (cfg.llmPostProcessing) {
         sendPhase('llm');
-        console.log('[Pipeline] LLM via', llmProvider, llmModel);
+        console.log('[Pipeline] LLM via Groq');
         const llmStart = Date.now();
-        const llmResult = await state.llmService!.process(raw, cfg, ctx);
+        try {
+          const llmResult = await state.llmService!.process(raw, cfg, ctx);
+          processedText = llmResult.text;
+          systemPromptUsed = llmResult.systemPrompt;
+          schedulePostPipelineExtraction(raw, processedText, cfg);
+          schedulePostPipelineKG(raw, processedText, cfg);
+        } catch (e) {
+          console.warn('[Pipeline] LLM failed, falling back to raw STT:', errMsg(e));
+          processedText = raw;
+        }
         llmDurationMs = Date.now() - llmStart;
-        console.log('[Pipeline] LLM done in', llmDurationMs, 'ms:', llmResult.text.slice(0, 100));
-        processedText = llmResult.text;
-        systemPromptUsed = llmResult.systemPrompt;
-        schedulePostPipelineExtraction(raw, processedText, cfg);
-      } else {
-        console.log('[Pipeline] LLM post-processing disabled, using raw STT output');
       }
 
       state.isRecording = false;
@@ -330,26 +264,35 @@ export function setupIPC() {
       return {
         success: true,
         rawText: raw,
-        processedText: processedText,
+        processedText,
         systemPrompt: systemPromptUsed,
-        sttProvider, llmProvider, sttModel, llmModel,
+        sttModel: 'Local Whisper',
+        llmModel: GROQ_MODEL,
         sttDurationMs, llmDurationMs,
       };
     } catch (e) {
       state.isRecording = false;
       sendPhase('done');
-      // Clean up realtime session if it was in use
-      if (realtimeSession) {
-        realtimeSession.close();
-        realtimeSession = null;
-      }
-      return { success: false, rawText: '', processedText: '', error: errMsg(e), sttProvider, llmProvider, sttModel, llmModel, sttDurationMs, llmDurationMs };
+      return {
+        success: false, rawText: '', processedText: '', error: errMsg(e),
+        sttModel: 'Local Whisper', llmModel: GROQ_MODEL,
+        sttDurationMs, llmDurationMs,
+      };
     } finally {
       pipelineRunning = false;
     }
   });
 
-  // Rewrite (Voice Superpowers)
+  // ─── LLM ────────────────────────────────────────────────────────────────
+  ipcMain.handle('llm:process', async (_e, text: string, ctx?: Record<string, unknown>) => {
+    try {
+      const result = await state.llmService!.process(text, state.configStore!.getAll(), ctx);
+      return { success: true, text: result.text };
+    } catch (e) {
+      return { success: false, error: errMsg(e) };
+    }
+  });
+
   ipcMain.handle('llm:rewrite', async (_e, text: string, instruction: string) => {
     try {
       const result = await state.llmService!.rewrite(text, instruction, state.configStore!.getAll());
@@ -359,10 +302,82 @@ export function setupIPC() {
     }
   });
 
-  // Clipboard
+  // ─── Speech Analysis ────────────────────────────────────────────────────
+  ipcMain.handle('analysis:analyze', async (_e, params: {
+    rawText: string;
+    processedText: string;
+    durationMs: number;
+  }) => {
+    try {
+      const cfg = state.configStore!.getAll();
+      if (!cfg.llmPostProcessing) {
+        return { success: true, data: null };
+      }
+      const analysis = await state.llmService!.analyzeSpeech(
+        params.rawText,
+        params.processedText,
+        params.durationMs,
+        cfg,
+      );
+      return { success: true, data: analysis };
+    } catch (e) {
+      return { success: false, error: errMsg(e) };
+    }
+  });
+
+  // ─── Chat ──────────────────────────────────────────────────────────────
+  ipcMain.handle('chat:send', async (_e, message: string, history: Array<{ role: 'user' | 'assistant'; content: string }>) => {
+    try {
+      const cfg = state.configStore!.getAll();
+      const kg = cfg.knowledgeGraph || [];
+      const response = await state.llmService!.chat(
+        [...history, { role: 'user', content: message }],
+        cfg,
+        kg,
+      );
+      return { success: true, response };
+    } catch (e) {
+      return { success: false, error: errMsg(e) };
+    }
+  });
+
+  const chatHistoryPath = path.join(app.getPath('userData'), 'chat-history.json');
+
+  ipcMain.handle('chat:history:save', async (_e, messages: Array<unknown>) => {
+    try {
+      fs.writeFileSync(chatHistoryPath, JSON.stringify(messages, null, 2));
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: errMsg(e) };
+    }
+  });
+
+  ipcMain.handle('chat:history:load', async () => {
+    try {
+      if (!fs.existsSync(chatHistoryPath)) return [];
+      const raw = fs.readFileSync(chatHistoryPath, 'utf-8');
+      return JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  });
+
+  // ─── Groq API test ──────────────────────────────────────────────────────
+  ipcMain.handle('groq:testConnection', async () => {
+    try {
+      const cfg = state.configStore!.getAll();
+      if (!cfg.groqApiKey) throw new Error('Groq API key not configured');
+      const msg = await state.llmService!.testConnection(cfg);
+      return { success: true, message: msg };
+    } catch (e) {
+      return { success: false, error: errMsg(e) };
+    }
+  });
+
+  // ─── Clipboard ──────────────────────────────────────────────────────────
   ipcMain.handle('clipboard:write', (_e, text: string) => { clipboard.writeText(text); return true; });
 
-  // Type text at cursor
+  // ─── Type at cursor ─────────────────────────────────────────────────────
   ipcMain.handle('text:typeAtCursor', async (_e, text: string) => {
     let prevClipboard = '';
     let pasted = false;
@@ -401,24 +416,19 @@ export function setupIPC() {
       recordTypedText(text);
       return { success: true };
     } catch (e) {
-      console.error('[TypeText] error:', errMsg(e));
       return { success: false, error: errMsg(e) };
     } finally {
-      // Always restore clipboard after a delay (even on error)
-      // Only restore if we actually modified it and paste completed
       if (pasted) {
         setTimeout(() => {
-          // Only restore if clipboard still contains our text (user may have copied something else)
           try { if (clipboard.readText() === text) clipboard.writeText(prevClipboard); } catch {}
         }, 500);
       } else {
-        // Paste failed — restore immediately
         try { clipboard.writeText(prevClipboard); } catch {}
       }
     }
   });
 
-  // Window controls
+  // ─── Window controls ────────────────────────────────────────────────────
   ipcMain.handle('window:minimize', () => state.mainWindow?.minimize());
   ipcMain.handle('window:maximize', () => {
     state.mainWindow?.isMaximized() ? state.mainWindow.unmaximize() : state.mainWindow?.maximize();
@@ -426,7 +436,7 @@ export function setupIPC() {
   ipcMain.handle('window:close', () => state.mainWindow?.hide());
   ipcMain.handle('window:hideOverlay', () => {
     if (state.isRecording) state.isRecording = false;
-    const ACTIVATE_SUPPRESS_MS = 600; // prevent macOS activate from showing main window after overlay hides
+    const ACTIVATE_SUPPRESS_MS = 600;
     state.suppressActivateUntil = Date.now() + ACTIVATE_SUPPRESS_MS;
     if (!state.overlayWindow) return;
     state.overlayWindow.setOpacity(0);
@@ -452,7 +462,7 @@ export function setupIPC() {
     });
   });
 
-  // Auto updater
+  // ─── Auto updater ────────────────────────────────────────────────────────
   ipcMain.handle('updater:check', () => autoUpdater.checkForUpdates().catch(() => null));
   ipcMain.handle('updater:download', () => autoUpdater.downloadUpdate().catch(() => null));
   ipcMain.handle('updater:install', () => {
@@ -461,7 +471,7 @@ export function setupIPC() {
   });
   ipcMain.handle('updater:getVersion', () => app.getVersion());
 
-  // Context awareness
+  // ─── Context awareness ───────────────────────────────────────────────────
   ipcMain.handle('context:getLastContext', () => resolveContext());
 
   ipcMain.handle('context:checkAccessibility', () => {
@@ -481,17 +491,12 @@ export function setupIPC() {
       execSync(`screencapture -x -t jpg "${tmpPath}"`, { timeout: 2000 });
       const size = fs.existsSync(tmpPath) ? fs.statSync(tmpPath).size : 0;
       return size > 100 ? 'granted' : 'denied';
-    } catch {
-      return 'denied';
-    } finally {
-      try { fs.unlinkSync(tmpPath); } catch {}
-    }
+    } catch { return 'denied'; }
+    finally { try { fs.unlinkSync(tmpPath); } catch {} }
   });
 
   ipcMain.handle('context:openScreenPrefs', () => {
-    if (isMac) {
-      exec('open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"');
-    }
+    if (isMac) exec('open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"');
     return true;
   });
 
@@ -499,7 +504,7 @@ export function setupIPC() {
     const cfg = state.configStore!.getAll();
     if (!cfg.contextOcrEnabled) return null;
     try {
-      const result = await captureScreenAndOcr(cfg);
+      const result = await captureScreenAndOcr();
       return result?.text || null;
     } catch (e) {
       console.error('[Context OCR] error:', errMsg(e));
@@ -507,23 +512,13 @@ export function setupIPC() {
     }
   });
 
-  // API test
-  ipcMain.handle('api:test', async (_e, provider: LLMProviderID) => {
+  // ─── Shell: Show item in folder ───────────────────────────────────
+  ipcMain.handle('shell:showItemInFolder', (_e, filePath: string) => {
     try {
-      const msg = await state.llmService!.testConnection(state.configStore!.getAll(), provider);
-      return { success: true, message: msg };
+      shell.showItemInFolder(filePath);
+      return { success: true };
     } catch (e) {
       return { success: false, error: errMsg(e) };
     }
   });
-
-  ipcMain.handle('api:testVLM', async () => {
-    try {
-      const msg = await state.llmService!.testVLMConnection(state.configStore!.getAll());
-      return { success: true, message: msg };
-    } catch (e) {
-      return { success: false, error: errMsg(e) };
-    }
-  });
-
 }

@@ -1,9 +1,10 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useConfigStore } from '../stores/configStore';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Button } from '../components/ui';
 import { HistoryItem } from '../types/config';
 import { friendlyErrorMessage } from '../utils/friendlyError';
+import { countWords } from '../utils/wordCount';
 import { useTranslation } from '../i18n';
 
 // ─── Audio helpers ───────────────────────────────────────────────────────────
@@ -11,128 +12,6 @@ import { useTranslation } from '../i18n';
 /** Convert a local media file path to a media:// URL for direct streaming. */
 function mediaUrl(filePath: string): string {
   return `media://${encodeURI(filePath)}`;
-}
-
-/** Parse WAV header to get duration in seconds. WAV files always have a known size. */
-async function getWavDuration(url: string): Promise<number> {
-  try {
-    const resp = await fetch(url, { headers: { Range: 'bytes=0-43' } });
-    const buf = await resp.arrayBuffer();
-    const view = new DataView(buf);
-    // WAV header: bytes 24-27 = sampleRate (uint32 LE), bytes 34-35 = bitsPerSample (uint16 LE)
-    // bytes 40-43 = data chunk size (uint32 LE), bytes 22-23 = numChannels (uint16 LE)
-    const sampleRate = view.getUint32(24, true);
-    const bitsPerSample = view.getUint16(34, true);
-    const numChannels = view.getUint16(22, true);
-    const dataSize = view.getUint32(40, true);
-    if (sampleRate && bitsPerSample && numChannels) {
-      return dataSize / (sampleRate * numChannels * (bitsPerSample / 8));
-    }
-  } catch { /* fall through */ }
-  return 0;
-}
-
-/** Compact inline audio player for detail modal. Stops on unmount. */
-function AudioPlayerBar({ audioPath }: { audioPath: string }) {
-  const [playing, setPlaying] = useState(false);
-  const [current, setCurrent] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const barRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const src = mediaUrl(audioPath);
-    const a = new Audio(src);
-    audioRef.current = a;
-
-    // WAV over streaming protocol often yields Infinity duration.
-    // Parse WAV header ourselves for reliable duration.
-    getWavDuration(src).then((d) => { if (!cancelled && d > 0) setDuration(d); });
-
-    // Also listen for browser-provided duration as fallback
-    const onDurationChange = () => {
-      if (!cancelled && isFinite(a.duration) && a.duration > 0) setDuration(a.duration);
-    };
-    const onTimeUpdate = () => { if (!cancelled) setCurrent(a.currentTime); };
-    const onEnded = () => { if (!cancelled) { setPlaying(false); setCurrent(0); } };
-
-    a.addEventListener('durationchange', onDurationChange);
-    a.addEventListener('loadedmetadata', onDurationChange);
-    a.addEventListener('timeupdate', onTimeUpdate);
-    a.addEventListener('ended', onEnded);
-
-    return () => {
-      cancelled = true;
-      a.pause();
-      a.removeEventListener('durationchange', onDurationChange);
-      a.removeEventListener('loadedmetadata', onDurationChange);
-      a.removeEventListener('timeupdate', onTimeUpdate);
-      a.removeEventListener('ended', onEnded);
-      a.src = '';
-    };
-  }, [audioPath]);
-
-  const toggle = useCallback(() => {
-    if (!audioRef.current) return;
-    if (playing) {
-      audioRef.current.pause();
-      setPlaying(false);
-    } else {
-      audioRef.current.play();
-      setPlaying(true);
-    }
-  }, [playing]);
-
-  const seek = useCallback((e: React.MouseEvent) => {
-    if (!audioRef.current || !barRef.current || !duration || !isFinite(duration)) return;
-    const rect = barRef.current.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const t = pct * duration;
-    audioRef.current.currentTime = t;
-    setCurrent(t);
-  }, [duration]);
-
-  const fmt = (s: number) => {
-    if (!isFinite(s) || s < 0) return '0:00';
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return `${m}:${sec.toString().padStart(2, '0')}`;
-  };
-
-  const safeDuration = isFinite(duration) && duration > 0 ? duration : 0;
-  const pct = safeDuration > 0 ? (current / safeDuration) * 100 : 0;
-
-  return (
-    <div className="flex items-center gap-2">
-      <button
-        onClick={toggle}
-        className="w-6 h-6 flex items-center justify-center rounded-md text-surface-500 hover:text-brand-500 transition-colors flex-shrink-0"
-      >
-        {playing ? (
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
-        ) : (
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
-        )}
-      </button>
-      <span className="text-[10px] font-mono tabular-nums text-surface-400 w-8 flex-shrink-0">
-        {fmt(current)}
-      </span>
-      <div
-        ref={barRef}
-        onClick={seek}
-        className="flex-1 h-1 rounded-full bg-surface-200 dark:bg-surface-700 cursor-pointer relative group"
-      >
-        <div
-          className="absolute inset-y-0 left-0 bg-brand-500 rounded-full transition-[width] duration-75"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <span className="text-[10px] font-mono tabular-nums text-surface-400 w-8 flex-shrink-0 text-right">
-        {safeDuration > 0 ? fmt(safeDuration) : '--:--'}
-      </span>
-    </div>
-  );
 }
 
 function ScreenshotThumbnail({ path: imgPath }: { path: string }) {
@@ -143,9 +22,13 @@ export function HistoryPage() {
   const history = useConfigStore((s) => s.config.history) || [];
   const clearHistory = useConfigStore((s) => s.clearHistory);
   const deleteHistoryItem = useConfigStore((s) => s.deleteHistoryItem);
+  const updateHistoryItem = useConfigStore((s) => s.updateHistoryItem);
   const [search, setSearch] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [retryErrorId, setRetryErrorId] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<HistoryItem | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
   const { t } = useTranslation();
   const filtered = useMemo(() => {
     if (!search.trim()) return history;
@@ -185,8 +68,26 @@ export function HistoryPage() {
     } catch {}
   };
 
-  /** Fetch audio ArrayBuffer via media:// protocol */
+  /** Decode a base64 string into an ArrayBuffer */
+  const base64ToArrayBuffer = (b64: string): ArrayBuffer => {
+    const binary = atob(b64);
+    const len = binary.length;
+    const buf = new ArrayBuffer(len);
+    const view = new Uint8Array(buf);
+    for (let i = 0; i < len; i++) view[i] = binary.charCodeAt(i);
+    return buf;
+  };
+
+  /** Fetch audio ArrayBuffer — tries IPC readMedia first, falls back to media:// fetch */
   const fetchAudioBuffer = async (audioPath: string): Promise<ArrayBuffer | null> => {
+    // IPC path (more reliable)
+    if (window.electronAPI?.readMedia) {
+      try {
+        const b64 = await window.electronAPI.readMedia(audioPath);
+        if (b64) return base64ToArrayBuffer(b64);
+      } catch { /* fall through */ }
+    }
+    // Fall back to media:// protocol fetch
     try {
       const resp = await fetch(mediaUrl(audioPath));
       if (!resp.ok) return null;
@@ -195,15 +96,33 @@ export function HistoryPage() {
   };
 
   const handleRetry = async (item: HistoryItem) => {
-    if (!item.audioPath || !window.electronAPI) return;
+    if (!item.audioPath || !window.electronAPI || retryingId) return;
+    setRetryingId(item.id);
+    setRetryErrorId(null);
     const buf = await fetchAudioBuffer(item.audioPath);
-    if (!buf) return;
+    if (!buf) {
+      setRetryErrorId(item.id);
+      setRetryingId(null);
+      return;
+    }
     try {
       const result = await window.electronAPI.processPipeline(buf);
-      if (result?.success && result.processedText) {
-        await handleCopy(result.processedText, item.id);
+      if (result?.success) {
+        const newText = result.processedText || '';
+        updateHistoryItem(item.id, {
+          rawText: result.rawText || '',
+          processedText: newText,
+          error: result.processedText ? undefined : (result.error || 'Retry failed'),
+          wordCount: newText ? countWords(newText) : 0,
+        });
+      } else {
+        setRetryErrorId(item.id);
       }
-    } catch {}
+    } catch {
+      setRetryErrorId(item.id);
+    } finally {
+      setRetryingId(null);
+    }
   };
 
   const handleDownloadAudio = async (item: HistoryItem) => {
@@ -230,6 +149,31 @@ export function HistoryPage() {
         <DetailModal item={selectedItem} onClose={() => setSelectedItem(null)} t={t} onDownloadAudio={handleDownloadAudio} />
       )}
 
+      {/* Clear all confirmation dialog */}
+      {confirmClear && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmClear(false)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white dark:bg-surface-900 rounded-2xl shadow-xl border border-surface-200 dark:border-surface-800 w-[320px] p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-surface-800 dark:text-surface-200 mb-2">Clear all history?</h3>
+            <p className="text-[13px] text-surface-500 dark:text-surface-400 leading-relaxed mb-5">This action cannot be undone. All transcriptions, audio recordings, and captured context will be permanently deleted.</p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setConfirmClear(false)}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 text-surface-600 dark:text-surface-400 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { clearHistory(); setConfirmClear(false); }}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors"
+              >
+                Clear all
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <PageHeader
         title={t('history.title')}
         actions={
@@ -248,7 +192,7 @@ export function HistoryPage() {
               </div>
             )}
             {history.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={clearHistory}>{t('history.clearAll')}</Button>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmClear(true)}>{t('history.clearAll')}</Button>
             )}
           </div>
         }
@@ -317,13 +261,24 @@ export function HistoryPage() {
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                       )}
                     </button>
-                    {item.error && item.audioPath && (
+                    {(item.error || retryErrorId === item.id) && item.audioPath && (
                       <button
                         onClick={(e) => { e.stopPropagation(); handleRetry(item); }}
-                        className="w-7 h-7 flex items-center justify-center rounded-md text-surface-400 hover:text-brand-500 hover:bg-brand-500/5 transition-colors"
+                        disabled={retryingId === item.id}
+                        className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors
+                          ${retryingId === item.id
+                            ? 'text-brand-500 cursor-wait'
+                            : retryErrorId === item.id
+                            ? 'text-red-400 hover:text-red-500 hover:bg-red-500/5'
+                            : 'text-surface-400 hover:text-brand-500 hover:bg-brand-500/5'
+                          }`}
                         title={t('history.retry')}
                       >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                        {retryingId === item.id ? (
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="animate-spin"><circle cx="12" cy="12" r="10" strokeDasharray="30 70" strokeLinecap="round"/></svg>
+                        ) : (
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                        )}
                       </button>
                     )}
                     <button
@@ -399,17 +354,21 @@ function DetailModal({ item, onClose, t, onDownloadAudio }: { item: HistoryItem;
           </button>
         </div>
 
-        {/* Audio Player — compact strip */}
+        {/* Audio file — open location */}
         {item.audioPath && (
           <div className="flex items-center gap-1.5 px-5 py-2 border-b border-surface-200 dark:border-surface-800/40 flex-shrink-0">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-surface-400 flex-shrink-0"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-            <div className="flex-1 min-w-0"><AudioPlayerBar audioPath={item.audioPath} /></div>
             <button
-              onClick={() => onDownloadAudio(item)}
-              className="w-6 h-6 flex items-center justify-center rounded-md text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 transition-colors flex-shrink-0"
+              onClick={() => window.electronAPI?.showItemInFolder(item.audioPath!)}
+              className="flex items-center gap-2 text-xs text-surface-500 hover:text-brand-500 dark:hover:text-brand-400 transition-colors group"
               title={t('history.downloadAudio')}
             >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-surface-400 group-hover:text-brand-400 transition-colors" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="12" y1="18" x2="12" y2="12"/>
+                <polyline points="9 15 12 18 15 15"/>
+              </svg>
+              <span>Open file location</span>
             </button>
           </div>
         )}
@@ -517,7 +476,7 @@ function DetailModal({ item, onClose, t, onDownloadAudio }: { item: HistoryItem;
             title={t('history.sttStage')}
             status={item.rawText ? 'success' : (isError ? 'error' : 'skipped')}
             isLast={false}
-            meta={ctx?.sttProvider ? `${ctx.sttProvider} · ${ctx.sttModel || ''}` : undefined}
+            meta={ctx?.sttModel ? `Whisper · ${ctx.sttModel}` : undefined}
             duration={formatDuration(ctx?.sttDurationMs)}
           >
             {item.rawText ? (
@@ -533,7 +492,7 @@ function DetailModal({ item, onClose, t, onDownloadAudio }: { item: HistoryItem;
             title={t('history.llmStage')}
             status={item.processedText ? 'success' : (isError && item.rawText ? 'error' : 'skipped')}
             isLast={true}
-            meta={ctx?.llmProvider ? `${ctx.llmProvider} · ${ctx.llmModel || ''}` : undefined}
+            meta={ctx?.llmModel ? `Groq · ${ctx.llmModel}` : undefined}
             duration={formatDuration(ctx?.llmDurationMs)}
           >
             {item.processedText ? (
@@ -565,6 +524,63 @@ function DetailModal({ item, onClose, t, onDownloadAudio }: { item: HistoryItem;
               </div>
             )}
           </PipelineStep>
+
+          {/* ═══ Step 4: Speech Analysis ═══ */}
+          {item.analysis && (
+            <PipelineStep
+              number={4}
+              title="Speech Analysis"
+              status="success"
+              isLast={true}
+              meta={item.analysis.disclaimer === 'NOT_A_DIAGNOSIS' ? 'Not a diagnosis' : undefined}
+            >
+              <div className="space-y-3">
+                {/* Overall score */}
+                <div className="flex items-center gap-4 mb-2">
+                  <div className="text-3xl font-bold font-mono" style={{ color: item.analysis.overallScore >= 70 ? '#10b981' : item.analysis.overallScore >= 40 ? '#f59e0b' : '#ef4444' }}>
+                    {item.analysis.overallScore}
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-[11px] text-surface-400 font-medium uppercase tracking-wider mb-1">Overall Score</div>
+                    <div className="w-full h-1.5 bg-surface-200 dark:bg-surface-700 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${item.analysis.overallScore}%`, background: item.analysis.overallScore >= 70 ? '#10b981' : item.analysis.overallScore >= 40 ? '#f59e0b' : '#ef4444' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5 dimensions */}
+                <div className="grid grid-cols-5 gap-2">
+                  {([
+                    ['Fluency', item.analysis.fluency],
+                    ['Lexical', item.analysis.lexicalDiversity],
+                    ['Syntax', item.analysis.syntacticComplexity],
+                    ['Coherence', item.analysis.coherence],
+                    ['Clarity', item.analysis.clarity],
+                  ] as const).map(([label, score]) => (
+                    <div key={label} className="text-center">
+                      <div className="text-sm font-mono font-semibold" style={{ color: score >= 70 ? '#10b981' : score >= 40 ? '#f59e0b' : '#ef4444' }}>{score}</div>
+                      <div className="text-[9px] text-surface-400 uppercase tracking-wider mt-0.5">{label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Detail metrics */}
+                {item.analysis.details && (
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-surface-500 dark:text-surface-400">
+                    <span>Filler words: {item.analysis.details.fillerWordCount}</span>
+                    <span>Repetitions: {item.analysis.details.repetitionCount}</span>
+                    <span>Self-corrections: {item.analysis.details.selfCorrectionCount}</span>
+                    <span>Avg sentence: {item.analysis.details.avgSentenceLength.toFixed(1)} words</span>
+                    <span>WPM: {item.analysis.details.speakingWpm}</span>
+                    <span>Vocabulary: {item.analysis.details.vocabularyLevel}</span>
+                  </div>
+                )}
+              </div>
+            </PipelineStep>
+          )}
         </div>
       </div>
     </div>

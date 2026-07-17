@@ -4,8 +4,8 @@ import { state, isDev } from './app-state';
 
 export function createTray(onToggleRecording: () => void) {
   const iconPath = isDev
-    ? path.join(__dirname, '../public/icon.svg')
-    : path.join(__dirname, '../dist/icon.svg');
+    ? path.join(__dirname, '../public/icon.png')
+    : path.join(__dirname, '../dist/icon.png');
 
   let icon: Electron.NativeImage;
   try {
@@ -15,7 +15,7 @@ export function createTray(onToggleRecording: () => void) {
   }
 
   state.tray = new Tray(icon);
-  state.tray.setToolTip('OpenType — Voice Dictation');
+  state.tray.setToolTip('Rivertide — Voice Dictation');
   updateTrayMenu(onToggleRecording);
   state.tray.on('click', () => { state.mainWindow?.show(); state.mainWindow?.focus(); });
 }
@@ -27,7 +27,7 @@ export function updateTrayMenu(onToggleRecording: () => void) {
   // Electron Menu accelerator doesn't support Fn key — omit it to avoid silent failure
   const accelerator = hotkey === 'Fn' || hotkey.startsWith('Fn+') ? undefined : hotkey;
   const menu = Menu.buildFromTemplate([
-    { label: 'Show OpenType', click: () => { state.mainWindow?.show(); state.mainWindow?.focus(); } },
+    { label: 'Show Rivertide', click: () => { state.mainWindow?.show(); state.mainWindow?.focus(); } },
     { type: 'separator' },
     { label: 'Start Dictation', accelerator, click: onToggleRecording },
     { type: 'separator' },

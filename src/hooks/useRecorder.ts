@@ -2,9 +2,24 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { AudioRecorder } from '../services/audioRecorder';
 import { runPipeline } from '../services/pipeline';
 import { useConfigStore } from '../stores/configStore';
-import { HistoryItem, getSTTProviderOpts, getSTTModelMode } from '../types/config';
+import { HistoryItem } from '../types/config';
 import { countWords } from '../utils/wordCount';
 import { errMsg } from '../utils/errMsg';
+
+/** Detect silence in a 16-bit PCM WAV buffer. Returns true if RMS is below threshold. */
+function isSilentWav(buf: ArrayBuffer, threshold = 0.008): boolean {
+  const len = buf.byteLength;
+  if (len <= 44) return true;
+  const view = new DataView(buf);
+  const numSamples = (len - 44) / 2;
+  if (numSamples < 50) return true;
+  let sumSq = 0;
+  for (let i = 0; i < numSamples; i++) {
+    const sample = view.getInt16(44 + i * 2, true) / 32768;
+    sumSq += sample * sample;
+  }
+  return Math.sqrt(sumSq / numSamples) < threshold;
+}
 
 function playBeep(freq: number, duration: number, volume = 0.25) {
   try {
@@ -79,33 +94,21 @@ export function useRecorder() {
         const status = await window.electronAPI.checkMicPermission();
         if (status === 'denied' || status === 'restricted') {
           setState((s) => ({ ...s, status: 'idle', error: 'Microphone access denied. Please grant microphone permission in System Settings.' }));
-          window.electronAPI.cancelRealtimeSTT(); // sync main process state.isRecording = false
           return;
         }
         if (status === 'not-determined') {
           const granted = await window.electronAPI.requestMicPermission();
           if (!granted) {
             setState((s) => ({ ...s, status: 'idle', error: 'Microphone permission is required for voice dictation.' }));
-            window.electronAPI.cancelRealtimeSTT();
             return;
           }
         }
       }
 
-      // Start Realtime STT only if the selected model is streaming
+      // Local Whisper is batch-only — no streaming
       let useStreaming = false;
       let sttSampleRate = 24000;
       const currentCfg = configRef.current;
-      const sttModel = getSTTProviderOpts(currentCfg).model;
-      const isStreamingModel = sttModel && getSTTModelMode(currentCfg.sttProvider, sttModel) === 'streaming';
-
-      if (window.electronAPI && isStreamingModel) {
-        try {
-          const r = await window.electronAPI.startRealtimeSTT();
-          useStreaming = r.success;
-          if (r.sampleRate) sttSampleRate = r.sampleRate;
-        } catch {}
-      }
       isStreamingRef.current = useStreaming;
       if (useStreaming) {
         setState((s) => ({ ...s, pipelinePhase: 'stt-streaming' }));
@@ -116,9 +119,7 @@ export function useRecorder() {
 
       await recorder.start(
         (level) => setState((s) => ({ ...s, audioLevel: level })),
-        useStreaming
-          ? (pcm16Base64) => window.electronAPI?.sendAudioChunk(pcm16Base64)
-          : undefined,
+        undefined,
         sttSampleRate,
         configRef.current.selectedMicrophoneId || undefined,
       );
@@ -135,7 +136,6 @@ export function useRecorder() {
       }, 600000);
     } catch (e) {
       setState((s) => ({ ...s, status: 'idle', error: `Microphone error: ${errMsg(e)}` }));
-      window.electronAPI?.cancelRealtimeSTT(); // sync main process state.isRecording = false
     }
   }, []);
 
@@ -163,6 +163,19 @@ export function useRecorder() {
     let audioPath: string | undefined;
     try {
       const audioBuffer = await recorder.stop();
+      const isStale = generationRef.current !== gen;
+
+      // Check if audio is silence — skip pipeline entirely
+      if (isSilentWav(audioBuffer)) {
+        if (!isStale) setState((s) => ({ ...s, status: 'idle', error: 'Empty recording' }));
+        addHistoryItem({
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          timestamp: Date.now(), rawText: '', processedText: '',
+          durationMs, wordCount: 0, audioPath, error: 'Empty recording',
+        });
+        return;
+      }
+
       if (window.electronAPI) {
         try {
           const audioBytes = new Uint8Array(audioBuffer);
@@ -197,8 +210,6 @@ export function useRecorder() {
         runPipeline(audioBuffer, configRef.current),
         contextWithTimeout,
       ]);
-
-      const isStale = generationRef.current !== gen;
 
       // Save screenshot to file if present
       let screenshotPath: string | undefined;
@@ -237,8 +248,6 @@ export function useRecorder() {
         contextL1Enabled: configRef.current.contextL1Enabled,
         contextOcrEnabled: configRef.current.contextOcrEnabled,
         systemPrompt: result.systemPrompt,
-        sttProvider: result.sttProvider,
-        llmProvider: result.llmProvider,
         sttModel: result.sttModel,
         llmModel: result.llmModel,
         sttDurationMs: result.sttDurationMs,
@@ -293,9 +302,24 @@ export function useRecorder() {
           context: buildContext(true),
         };
         addHistoryItem(item);
+
+        // Fire-and-forget: run speech analysis asynchronously
+        if (window.electronAPI && result.processedText) {
+          window.electronAPI.analyzeSpeech({
+            rawText: result.rawText,
+            processedText: result.processedText,
+            durationMs,
+          }).then((analysisResult) => {
+            if (analysisResult.success && analysisResult.data) {
+              useConfigStore.getState().updateHistoryItem(item.id, {
+                analysis: analysisResult.data,
+              });
+            }
+          }).catch(() => {});
+        }
       } else if (result.skipped) {
         if (!isStale) {
-          setState((s) => ({ ...s, status: 'idle', error: 'No speech detected' }));
+          setState((s) => ({ ...s, status: 'idle', error: 'Empty recording' }));
         }
         // Save skipped to history
         const skipItem: HistoryItem = {
@@ -306,7 +330,7 @@ export function useRecorder() {
           durationMs,
           wordCount: 0,
           audioPath,
-          error: 'No speech detected',
+          error: 'Empty recording',
           sourceApp: context.appName,
           windowTitle: context.windowTitle,
           context: buildContext(false),
@@ -368,7 +392,6 @@ export function useRecorder() {
     }
     // Reset main process state (isRecording, system audio) and close any realtime session.
     // Must always call — even in batch mode — to ensure state.isRecording is reset.
-    window.electronAPI?.cancelRealtimeSTT();
     isStreamingRef.current = false;
     // Stop recorder without processing the audio
     if (recorderRef.current) {

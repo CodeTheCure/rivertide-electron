@@ -44,6 +44,13 @@ export function AdvancedSettings() {
         description={t('settings.advanced.autoFormatDesc')}
       />
       </>)}
+
+      <Toggle
+        checked={config.knowledgeGraphEnabled}
+        onChange={(v) => set('knowledgeGraphEnabled', v)}
+        label={t('settings.advanced.knowledgeGraphTitle')}
+        description={t('settings.advanced.knowledgeGraphDesc')}
+      />
     </div>
   );
 }

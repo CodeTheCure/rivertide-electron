@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useConfigStore } from '../stores/configStore';
 import { useTranslation } from '../i18n';
 import { friendlyErrorMessage } from '../utils/friendlyError';
 import type { HistoryItem } from '../types/config';
-
-const GITHUB_URL = 'https://github.com/WEIFENG2333/OpenType';
+import logoSrc from '../assets/logo.png';
 
 /* ── Permission warning banner ── */
 function PermissionWarnings() {
@@ -78,20 +77,20 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (page: string) => v
   const globalHotkey = useConfigStore((s) => s.config.globalHotkey);
   const { t } = useTranslation();
   const [version, setVersion] = useState('');
-  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'latest'>('idle');
+  const [updateMsg, setUpdateMsg] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<HistoryItem | null>(null);
 
   useEffect(() => {
-    window.electronAPI?.getVersion?.().then(setVersion);
+    window.electronAPI?.getVersion?.().then((v) => setVersion(v || '1.0.0')).catch(() => setVersion('1.0.0'));
   }, []);
+  // Default to 1.0.0 if not in Electron
+  if (!window.electronAPI && !version) setVersion('1.0.0');
 
-  const handleCheckUpdate = () => {
-    setUpdateStatus('checking');
-    window.electronAPI?.checkForUpdates?.().catch(() => {
-      setUpdateStatus('idle');
-    });
-    // Status will be set by onUpdateAvailable/onUpdateNotAvailable event listeners
-  };
+  // Show "Coming soon" toast when check for updates is clicked
+  const handleCheckUpdate = useCallback(() => {
+    setUpdateMsg('Coming soon');
+    setTimeout(() => setUpdateMsg(null), 2000);
+  }, []);
 
   // Stats — computed from history (single pass)
   const stats = useMemo(() => {
@@ -99,12 +98,12 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (page: string) => v
     const weekAgo = now - 7 * 24 * 3600 * 1000;
 
     let totalWords = 0;
-    let totalDictationMs = 0;  // sum of recording durations
+    let totalDictationMs = 0;
     let weekWords = 0;
     let weekDictationMs = 0;
 
     for (const item of history) {
-      if (item.error && !item.processedText) continue; // skip pure errors
+      if (item.error && !item.processedText) continue;
       totalWords += item.wordCount || 0;
       totalDictationMs += item.durationMs || 0;
       if (item.timestamp >= weekAgo) {
@@ -118,12 +117,9 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (page: string) => v
     const totalHr = Math.floor(totalDictationMin / 60);
     const totalMin = totalDictationMin % 60;
 
-    // Time saved: typing at ~40 WPM vs dictation speed
-    // savedTime = (totalWords / 40) minutes - actualDictationMinutes
     const typingMinutes = totalWords / 40;
     const savedMinutes = Math.max(0, Math.round(typingMinutes - totalDictationMin));
 
-    // Average WPM based on this week's data
     const weekDictationMin = weekDictationMs / 60000;
     const avgWPM = weekDictationMin > 0.1 ? Math.round(weekWords / weekDictationMin) : 0;
 
@@ -132,12 +128,10 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (page: string) => v
 
   const hasStats = stats.totalWords > 0 || stats.totalDictationMin > 0 || stats.avgWPM > 0;
 
-  // Recent transcriptions (last 3)
   const recentItems: HistoryItem[] = history.slice(0, 3);
 
-  // Hotkey display
   const hotkey = (globalHotkey || 'CommandOrControl+Shift+Space')
-    .replace('CommandOrControl', 'Ctrl')
+    .replace('CommandOrControl', window.electronAPI?.platform === 'darwin' ? 'Cmd' : 'Ctrl')
     .replace(/\+/g, ' + ');
 
   return (
@@ -149,103 +143,65 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (page: string) => v
           <PermissionWarnings />
 
           {/* ── Hero ── */}
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1 className="text-[26px] font-bold text-surface-900 dark:text-surface-100 tracking-tight leading-tight">
-                {t('dashboard.heroTitle')}
-              </h1>
-              <p className="mt-3 text-[14px] text-surface-500 dark:text-surface-400 leading-relaxed">
-                {t('dashboard.heroSubtitle', { hotkey: '' })}
-                <kbd className="inline-block mx-1 px-2 py-0.5 bg-white dark:bg-surface-700 border border-surface-200 dark:border-surface-600 rounded-md text-[12px] text-surface-600 dark:text-surface-200 font-mono shadow-sm">
-                  {hotkey}
-                </kbd>
-              </p>
+          <div className="rt-card p-6 overflow-hidden relative">
+            {/* Subtle logo watermark */}
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-36 h-36 opacity-[0.04] dark:opacity-[0.06] pointer-events-none">
+              <img src={logoSrc} className="w-full h-full object-contain" alt="" />
             </div>
-            <a
-              href={GITHUB_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-shrink-0 px-4 py-2 border border-surface-200 dark:border-surface-700 rounded-xl text-[13px] text-surface-600 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-850 transition-colors whitespace-nowrap"
-            >
-              {t('dashboard.hotCases')} ↗
-            </a>
+            <div className="relative z-10 flex items-start gap-5">
+              <div className="w-12 h-12 rounded-2xl bg-brand-500/10 dark:bg-brand-500/15 flex items-center justify-center shrink-0 border border-brand-500/10">
+                <img src={logoSrc} className="w-8 h-8 rounded-lg" alt="" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-[22px] font-bold text-surface-900 dark:text-surface-100 tracking-tight leading-tight">
+                  {t('dashboard.heroTitle')}
+                </h1>
+                <p className="mt-1.5 text-sm text-surface-500 dark:text-surface-400 leading-relaxed">
+                  {t('dashboard.heroSubtitle', { hotkey: '' })}
+                  <kbd className="rt-keycap mx-1.5 align-middle">{hotkey}</kbd>
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* ── Stats ── */}
           {hasStats && (
-            <div className="grid grid-cols-2 gap-4">
-              <StatCard
-                icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>}
-                label={t('dashboard.totalTime')}
-                value={stats.totalHr > 0 ? `${stats.totalHr} ${t('dashboard.hr')} ${stats.totalMin} ${t('dashboard.min')}` : `${stats.totalMin} ${t('dashboard.min')}`}
-              />
-              <StatCard
-                icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>}
-                label={t('dashboard.totalWords')}
-                value={stats.totalWords >= 1000 ? `${(stats.totalWords / 1000).toFixed(1)}K` : `${stats.totalWords}`}
-                unit={t('dashboard.wordsUnit')}
-              />
-              <StatCard
-                icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg>}
-                label={t('dashboard.timeSaved')}
-                value={stats.savedMinutes > 60 ? `${Math.floor(stats.savedMinutes / 60)} ${t('dashboard.hr')} ${stats.savedMinutes % 60} ${t('dashboard.min')}` : `${stats.savedMinutes} ${t('dashboard.min')}`}
-              />
-              <StatCard
-                icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>}
-                label={t('dashboard.avgSpeed')}
-                value={`${stats.avgWPM}`}
-                unit="WPM"
-              />
+            <div className="rt-card overflow-hidden !p-0 relative">
+              {/* Large logo watermark spanning the card */}
+              <div className="absolute inset-0 flex items-center justify-end pointer-events-none overflow-hidden">
+                <img
+                  src={logoSrc}
+                  className="w-48 h-48 object-contain opacity-[0.03] dark:opacity-[0.05] mr-4"
+                  alt=""
+                />
+              </div>
+              <div className="relative z-10 grid grid-cols-2 divide-x divide-y divide-surface-100 dark:divide-surface-800/50">
+                <StatCell
+                  label={t('dashboard.totalTime')}
+                  value={stats.totalHr > 0 ? `${stats.totalHr} ${t('dashboard.hr')} ${stats.totalMin} ${t('dashboard.min')}` : `${stats.totalMin} ${t('dashboard.min')}`}
+                />
+                <StatCell
+                  label={t('dashboard.totalWords')}
+                  value={stats.totalWords >= 1000 ? `${(stats.totalWords / 1000).toFixed(1)}K` : `${stats.totalWords}`}
+                  unit={t('dashboard.wordsUnit')}
+                />
+                <StatCell
+                  label={t('dashboard.timeSaved')}
+                  value={stats.savedMinutes > 60 ? `${Math.floor(stats.savedMinutes / 60)} ${t('dashboard.hr')} ${stats.savedMinutes % 60} ${t('dashboard.min')}` : `${stats.savedMinutes} ${t('dashboard.min')}`}
+                />
+                <StatCell
+                  label={t('dashboard.avgSpeed')}
+                  value={`${stats.avgWPM}`}
+                  unit="WPM"
+                />
+              </div>
             </div>
           )}
-
-          {/* ── GitHub promo cards ── */}
-          <div className="grid grid-cols-2 gap-4">
-            <a
-              href={GITHUB_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-2xl p-5 flex gap-3 no-underline transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg group bg-blue-50/80 dark:bg-brand-500/15 border border-blue-100/50 dark:border-brand-500/30"
-            >
-              <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-white/60 dark:bg-white/10 flex items-center justify-center shadow-sm">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0 flex flex-col">
-                <h3 className="text-[14px] font-semibold text-surface-800 dark:text-surface-200 mb-0.5">{t('dashboard.starProject')}</h3>
-                <p className="text-[11px] text-surface-500 dark:text-surface-400 leading-relaxed flex-1">{t('dashboard.starDesc')}</p>
-                <span className="mt-2 self-start inline-block px-3 py-1 bg-white/70 dark:bg-white/10 border border-surface-200/50 dark:border-surface-600/50 rounded-lg text-[11px] text-surface-600 dark:text-surface-300 group-hover:bg-white dark:group-hover:bg-white/15 transition-colors">
-                  {t('dashboard.goStar')}
-                </span>
-              </div>
-            </a>
-
-            <a
-              href={`${GITHUB_URL}/issues`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-2xl p-5 flex gap-3 no-underline transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg group bg-orange-50/80 dark:bg-orange-500/15 border border-orange-100/50 dark:border-orange-500/30"
-            >
-              <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-white/60 dark:bg-white/10 flex items-center justify-center shadow-sm">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0 flex flex-col">
-                <h3 className="text-[14px] font-semibold text-surface-800 dark:text-surface-200 mb-0.5">{t('dashboard.contribute')}</h3>
-                <p className="text-[11px] text-surface-500 dark:text-surface-400 leading-relaxed flex-1">{t('dashboard.contributeDesc')}</p>
-                <span className="mt-2 self-start inline-block px-3 py-1 bg-white/70 dark:bg-white/10 border border-surface-200/50 dark:border-surface-600/50 rounded-lg text-[11px] text-surface-600 dark:text-surface-300 group-hover:bg-white dark:group-hover:bg-white/15 transition-colors">
-                  {t('dashboard.viewIssues')}
-                </span>
-              </div>
-            </a>
-          </div>
 
           {/* ── Recent transcriptions ── */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold text-surface-800 dark:text-surface-200">{t('dashboard.recent')}</h2>
+              <h2 className="text-base font-semibold text-surface-800 dark:text-surface-200">{t('dashboard.recent')}</h2>
               {recentItems.length > 0 && onNavigate && (
                 <button
                   onClick={() => onNavigate('history')}
@@ -257,7 +213,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (page: string) => v
             </div>
 
             {recentItems.length > 0 ? (
-              <div className="border border-surface-200 dark:border-surface-800 rounded-2xl overflow-hidden">
+              <div className="rt-card overflow-hidden !p-0">
                 {recentItems.map((item, idx) => (
                   <RecentItem
                     key={item.id}
@@ -277,8 +233,8 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (page: string) => v
                 )}
               </div>
             ) : (
-              <div className="border border-surface-200 dark:border-surface-800 rounded-2xl py-10 flex flex-col items-center gap-3">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-surface-300 dark:text-surface-500"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              <div className="rt-card py-10 flex flex-col items-center gap-3">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-surface-300 dark:text-surface-500"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
                 <p className="text-sm text-surface-400 dark:text-surface-500">{t('dashboard.noRecent')}</p>
                 {onNavigate && (
                   <button
@@ -296,29 +252,21 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (page: string) => v
 
       {/* ── Footer ── */}
       <div className="px-8 py-3 border-t border-surface-100 dark:border-surface-800/30 flex items-center justify-between text-[11px] text-surface-400 dark:text-surface-500 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <span>OpenType {version || ''}</span>
+        <span>Rivertide {version || ''}</span>
+        <div className="relative flex items-center gap-2">
           <button
             onClick={handleCheckUpdate}
             className="text-brand-500 hover:text-brand-400 transition-colors"
-            disabled={updateStatus === 'checking'}
           >
-            {updateStatus === 'checking' ? t('dashboard.checking') :
-             updateStatus === 'latest' ? t('dashboard.upToDate') :
-             t('dashboard.checkUpdate')}
+            {t('dashboard.checkUpdate')}
           </button>
-        </div>
-        <div className="flex items-center gap-3">
-          <a href={`${GITHUB_URL}/issues`} target="_blank" rel="noopener noreferrer"
-            className="hover:text-surface-600 dark:hover:text-surface-400 transition-colors flex items-center gap-1">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            {t('dashboard.feedback')}
-          </a>
-          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer"
-            className="hover:text-surface-600 dark:hover:text-surface-400 transition-colors flex items-center gap-1">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
-            GitHub
-          </a>
+          {updateMsg && (
+            <span
+              className="text-brand-500 text-[10px] font-medium animate-fade-in"
+            >
+              {updateMsg}
+            </span>
+          )}
         </div>
       </div>
 
@@ -330,17 +278,16 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (page: string) => v
   );
 }
 
-/* ── Stat card ── */
-function StatCard({ icon, label, value, unit }: { icon: JSX.Element; label: string; value: string; unit?: string }) {
+/* ── Stat cell (inside the unified stats card) ── */
+function StatCell({ label, value, unit }: { label: string; value: string; unit?: string }) {
   return (
-    <div className="bg-surface-50 dark:bg-surface-850 border border-surface-200 dark:border-surface-800 rounded-2xl px-5 py-4">
-      <div className="flex items-center gap-2 text-surface-400 mb-2">
-        {icon}
-        <span className="text-[11px] uppercase tracking-wider">{label}</span>
+    <div className="px-6 py-5">
+      <div className="text-[11px] uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-2 font-medium">
+        {label}
       </div>
       <div className="flex items-baseline gap-1.5">
-        <span className="text-2xl font-bold text-surface-800 dark:text-surface-200">{value}</span>
-        {unit && <span className="text-xs text-surface-400">{unit}</span>}
+        <span className="rt-stat-value text-2xl">{value}</span>
+        {unit && <span className="text-[13px] text-surface-400 dark:text-surface-500 font-medium">{unit}</span>}
       </div>
     </div>
   );
@@ -353,18 +300,17 @@ function RecentItem({ item, expanded, isLast, onClick }: { item: HistoryItem; ex
   const ago = formatTimeAgo(item.timestamp, t);
   const dur = item.durationMs ? formatDuration(item.durationMs) : '';
 
-  // Pick icon based on source app
   const iconEl = getAppIcon(item.sourceApp);
 
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left flex items-center gap-3.5 px-5 transition-colors hover:bg-surface-50 dark:hover:bg-surface-850 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset outline-none
+      className={`w-full text-left flex items-center gap-3.5 px-5 transition-colors hover:bg-surface-50 dark:hover:bg-surface-850 hover:ring-1 hover:ring-brand-500/10 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset outline-none
         ${expanded ? 'py-5' : 'py-3.5'}
         ${!isLast ? 'border-b border-surface-100 dark:border-surface-800/50' : ''}
         ${item.error ? 'border-l-2 border-l-red-400' : ''}`}
     >
-      <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-surface-100 dark:bg-surface-800 flex items-center justify-center text-surface-400">
+      <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center text-brand-400">
         {iconEl}
       </div>
       <div className="flex-1 min-w-0">
@@ -373,7 +319,7 @@ function RecentItem({ item, expanded, isLast, onClick }: { item: HistoryItem; ex
         </p>
         <div className="flex items-center gap-2 mt-1 text-[11px] text-surface-400">
           {item.sourceApp && <span>{item.sourceApp}</span>}
-          {item.sourceApp && <span>·</span>}
+          {item.sourceApp && <span className="opacity-40">·</span>}
           <span>{ago}</span>
         </div>
       </div>
@@ -405,13 +351,12 @@ function DetailModal({ item, onClose }: { item: HistoryItem; onClose: () => void
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="bg-white dark:bg-surface-900 rounded-2xl shadow-2xl w-[440px] max-h-[70vh] overflow-hidden flex flex-col"
+        className="bg-white dark:bg-surface-900 rounded-2xl shadow-xl w-[440px] max-h-[70vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100 dark:border-surface-800">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-surface-100 dark:bg-surface-800 flex items-center justify-center text-surface-400">
+            <div className="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center text-brand-400">
               {getAppIcon(item.sourceApp)}
             </div>
             <div>
@@ -428,7 +373,6 @@ function DetailModal({ item, onClose }: { item: HistoryItem; onClose: () => void
           </button>
         </div>
 
-        {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           {item.processedText && (
             <div>
@@ -450,7 +394,6 @@ function DetailModal({ item, onClose }: { item: HistoryItem; onClose: () => void
           )}
         </div>
 
-        {/* Footer */}
         {text && (
           <div className="px-6 py-3 border-t border-surface-100 dark:border-surface-800 flex justify-end">
             <button
@@ -468,7 +411,6 @@ function DetailModal({ item, onClose }: { item: HistoryItem; onClose: () => void
 
 /* ── Helpers ── */
 function getAppIcon(sourceApp?: string): JSX.Element {
-  // Return a generic mic icon — could be extended with app-specific icons
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>

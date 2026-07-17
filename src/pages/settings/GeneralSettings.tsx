@@ -44,7 +44,7 @@ export function GeneralSettings() {
 
   return (
     <div className="space-y-4">
-      {/* 外观与语言 */}
+      {/* Appearance & Language */}
       <SettingRow label={t('settings.general.appearance')} description={t('settings.general.themeHint')}>
         <Select
           value={config.theme}
@@ -64,7 +64,7 @@ export function GeneralSettings() {
           options={[
             { value: 'auto', label: t('settings.language.auto') },
             { value: 'en', label: 'English' },
-            { value: 'zh', label: '中文' },
+            { value: 'zh', label: 'Chinese' },
           ]}
         />
       </SettingRow>
@@ -78,7 +78,7 @@ export function GeneralSettings() {
 
       <hr className="border-surface-100 dark:border-surface-800/40" />
 
-      {/* 录音行为 */}
+      {/* Recording behavior */}
       <SettingRow label={t('settings.general.inputMode')} description={t('settings.general.inputModeHint')}>
         <Select
           value={config.inputMode}
@@ -117,7 +117,7 @@ export function GeneralSettings() {
 
       <hr className="border-surface-100 dark:border-surface-800/40" />
 
-      {/* 更新 */}
+      {/* Updates */}
       <div className="space-y-2">
         <div className="flex items-center gap-3">
           <Button

@@ -4,7 +4,7 @@
  */
 
 import { state } from './app-state';
-import { CapturedContext } from './context-capture';
+import { CapturedContext, execAsync } from './context-capture';
 import { AppConfig, DictionaryEntry } from '../src/types/config';
 import { shouldSkipExtraction, buildPipelinePrompt, buildEditDiffPrompt } from './auto-dict-utils';
 
@@ -103,4 +103,55 @@ export function recordTypedText(text: string) {
     fieldRole: state.lastCapturedContext?.fieldRole,
   };
   state.lastTypedAt = Date.now();
+
+  schedulePostPasteEditDetection(text);
+}
+
+// ─── 5-second post-paste edit detection ─────────────────────────────────────
+
+function schedulePostPasteEditDetection(text: string) {
+  const bundleId = state.lastTypedContext?.bundleId;
+  const fieldRole = state.lastTypedContext?.fieldRole;
+
+  setTimeout(async () => {
+    try {
+      const cfg = state.configStore!.getAll();
+      if (!cfg.autoLearnDictionary || !cfg.contextL1Enabled) return;
+
+      const result = await execAsync(`osascript -e '
+        tell application "System Events"
+          set frontApp to first application process whose frontmost is true
+          set currentBid to bundle identifier of frontApp
+          set focusedField to focused of text area 1 of window 1 of frontApp
+          if focusedField exists then
+            try
+              set currentRole to role of focusedField
+              set fieldVal to value of attribute "AXValue" of focusedField
+              return currentBid & "|||" & currentRole & "|||" & fieldVal
+            end try
+          end if
+        end tell
+        return ""
+      '`, { timeout: 3000 });
+
+      if (!result) return;
+      const parts = result.split('|||');
+      if (parts.length < 3) return;
+      const currentBid = parts[0]?.trim() || '';
+      const currentRole = parts[1]?.trim() || '';
+      const currentFieldText = parts[2]?.trim() || '';
+
+      if (currentBid !== bundleId || currentRole !== fieldRole) return;
+      if (!currentFieldText) return;
+      if (currentFieldText.includes(text) || currentFieldText === text) return;
+
+      const dictWords = getDictWords();
+      const prompt = buildEditDiffPrompt(text, currentFieldText, dictWords);
+      state.llmService!.extractTerms(prompt, cfg, dictWords)
+        .then(terms => saveDictionaryTerms(terms, 'auto-diff'))
+        .catch(e => console.error('[AutoDict:post-paste]', e));
+    } catch (e) {
+      console.error('[AutoDict:post-paste] error:', e);
+    }
+  }, 5000);
 }

@@ -100,7 +100,7 @@ export function toggleRecording() {
 
         if (cfg.contextOcrEnabled) {
           const gen = ++state.ocrGeneration;
-          state.ocrPromise = captureScreenAndOcr(cfg).then((result) => {
+          state.ocrPromise = captureScreenAndOcr().then((result) => {
             if (state.ocrGeneration !== gen) {
               console.log('[OCR] stale generation, discarding');
               return null;

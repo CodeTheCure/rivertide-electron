@@ -4,6 +4,9 @@
     "dictation": "听写",
     "history": "历史记录",
     "dictionary": "词典",
+    "chat": "AI 助手",
+    "knowledgeGraph": "知识",
+    "analytics": "分析",
     "settings": "设置",
     "lightMode": "浅色模式",
     "darkMode": "深色模式"
@@ -16,7 +19,7 @@
     "processing": "处理中...",
     "transcribing": "正在转录和润色文本",
     "avgSpeed": "平均速度",
-    "heroTitle": "自然说话，完美书写 – 在任何应用中",
+    "heroTitle": "适用于所有应用的语音听写",
     "heroSubtitle": "按下 {hotkey} 开始和停止语音输入。或者按住说一些简短的话。",
     "totalTime": "总口述时间",
     "totalWords": "口述字数",
@@ -27,10 +30,10 @@
     "hr": "时",
     "min": "分",
     "starProject": "Star 项目",
-    "starDesc": "如果觉得 OpenType 对你有帮助，请在 GitHub 上点个 Star 支持我们。",
+    "starDesc": "如果觉得 Rivertide 对你有帮助，请在 GitHub 上点个 Star 支持我们。",
     "goStar": "去 Star",
     "contribute": "参与贡献",
-    "contributeDesc": "提交 Issue 或 Pull Request，一起让 OpenType 变得更好。",
+    "contributeDesc": "提交 Issue 或 Pull Request，一起让 Rivertide 变得更好。",
     "viewIssues": "查看 Issues",
     "hotCases": "使用案例",
     "checkUpdate": "检查更新",
@@ -92,7 +95,7 @@
   },
   "dictionary": {
     "title": "个人词典",
-    "addPlaceholder": "添加词条（逗号分隔，例如 Kubernetes, gRPC, OpenType）",
+    "addPlaceholder": "添加词条（逗号分隔，例如 Kubernetes, gRPC, Rivertide）",
     "add": "添加",
     "noTerms": "暂无自定义词条",
     "noTermsHint": "这里的词汇帮助 AI 正确拼写领域专用词汇",
@@ -169,7 +172,10 @@
       "sttTitle": "STT 语音识别",
       "sttTooltip": "将语音转为原始文字，这是第一步——选择支持你所用语言的提供商。",
       "llmTitle": "LLM 大模型",
-      "llmTooltip": "润色转录文本、移除填充词、应用语气规则，同时为屏幕上下文识别（VLM）提供支持。"
+      "llmTooltip": "润色转录文本、移除填充词、应用语气规则，同时为屏幕上下文识别（VLM）提供支持。",
+      "modelDownloaded": "已下载",
+      "download": "下载",
+      "ready": "就绪"
     },
     "general": {
       "description": "外观、启动行为和输入输出偏好设置。",
@@ -179,7 +185,7 @@
       "light": "浅色",
       "system": "跟随系统",
       "launchOnStartup": "开机启动",
-      "launchDesc": "登录时自动启动 OpenType",
+      "launchDesc": "登录时自动启动 Rivertide",
       "inputMode": "输入模式",
       "toggle": "切换模式",
       "pushToTalk": "按住说话（按住录音）",
@@ -226,7 +232,7 @@
       "auto": "自动（跟随系统）"
     },
     "privacy": {
-      "privacyDesc": "OpenType 将所有听写历史存储在本地设备上。音频通过 API 调用处理，但不会被服务提供商存储。我们不使用您的数据来训练任何模型。",
+      "privacyDesc": "Rivertide 将所有听写历史存储在本地设备上。音频通过 API 调用处理，但不会被服务提供商存储。我们不使用您的数据来训练任何模型。",
       "saveHistory": "保存听写历史",
       "saveHistoryDesc": "启用后，所有转录记录将保存在本地以供查阅",
       "retention": "历史保留期限",
@@ -238,7 +244,10 @@
       "1h": "1 小时",
       "clearAll": "清除所有本地数据",
       "clearAllHint": "删除此设备上的所有历史记录、个人词典条目和学习偏好。",
-      "clearConfirm": "清除所有本地数据？此操作无法撤销。"
+      "clearConfirm": "清除所有本地数据？此操作无法撤销。",
+      "contact": "联系与支持",
+      "contactDesc": "有问题或反馈？我们很乐意听取您的意见。",
+      "contactLink": "访问 codethecure.app/contact 联系我们"
     },
     "advanced": {
       "description": "微调 AI 后处理流水线。每个功能都可以单独启用或禁用。",
@@ -251,11 +260,13 @@
       "selfCorrection": "自我纠正检测",
       "selfCorrectionDesc": "识别句中纠正（例如「周一——不，周二」）并只保留最终意图",
       "autoFormat": "自动格式化",
-      "autoFormatDesc": "添加标点符号、大小写，并将口述的列表整理为结构化文本"
+      "autoFormatDesc": "添加标点符号、大小写，并将口述的列表整理为结构化文本",
+      "knowledgeGraphTitle": "知识自动提取",
+      "knowledgeGraphDesc": "每次听写后自动提取个人事实并添加到知识库，用于 AI 助手的个性化回答"
     }
   },
   "context": {
-    "description": "上下文感知帮助 OpenType 理解您正在做什么，以获得更好的转录结果。",
+    "description": "上下文感知帮助 Rivertide 理解您正在做什么，以获得更好的转录结果。",
     "activeWindowToggle": "检测当前应用",
     "activeWindowDesc": "检测当前活跃应用（如 Slack、VS Code），自动匹配相应的写作风格",
     "selectedTextToggle": "输入框感知",
@@ -268,6 +279,73 @@
     "screenNeeded": "需要屏幕录制权限 — 点击打开设置",
     "autoLearnToggle": "自动从转录中学习词条",
     "autoLearnDesc": "从转录中检测专有名词、品牌名和技术术语，自动添加到个人词典"
+  },
+  "analytics": {
+    "pageTitle": "语音分析",
+    "pageSubtitle": "认知健康跟踪 — 非医学诊断",
+    "disclaimer": "⚠ 这不是医学诊断。这些分析仅供个人参考，不能替代专业医疗建议。",
+    "overallScore": "健康评分",
+    "noData": "开始口述即可查看语音分析",
+    "goToDictation": "开始口述",
+    "metrics": {
+      "fluency": "流利度",
+      "lexicalDiversity": "词汇多样性",
+      "syntacticComplexity": "句子复杂度",
+      "coherence": "连贯性",
+      "clarity": "清晰度"
+    },
+    "details": {
+      "fillerWords": "填充词",
+      "repetitions": "重复次数",
+      "selfCorrections": "自我纠正",
+      "avgSentenceLength": "平均句长",
+      "vocabularyLevel": "词汇水平",
+      "wpm": "词/分钟",
+      "uniqueWordRatio": "独特词比例"
+    },
+    "perApp": "按应用分布",
+    "recentAnalyses": "最近分析",
+    "trend": "趋势",
+    "improving": "改善中",
+    "stable": "稳定",
+    "declining": "下降中",
+    "unknown": "数据不足",
+    "score": "评分",
+    "date": "日期",
+    "noAnalysesYet": "暂无分析数据。请先进行口述录音。",
+    "appName": "应用"
+  },
+  "chat": {
+    "title": "AI 助手",
+    "placeholder": "随便问点什么...",
+    "send": "发送",
+    "thinking": "思考中...",
+    "empty": "开始对话吧！问我任何事情，我会利用你的知识图谱给出个性化回答。"
+  },
+  "knowledgeGraph": {
+    "title": "知识",
+    "add": "添加信息",
+    "edit": "编辑",
+    "delete": "删除",
+    "save": "保存",
+    "cancel": "取消",
+    "label": "标签",
+    "labelPlaceholder": "例如：我最喜欢的编程语言",
+    "content": "内容",
+    "contentPlaceholder": "例如：我主要使用 TypeScript 和 Python",
+    "category": "分类",
+    "search": "搜索信息...",
+    "noNodes": "暂无保存信息",
+    "noNodesHint": "添加关于你自己的信息——AI 助手会利用这些信息给出个性化回答。",
+    "confirmDelete": "删除此项？此操作不可撤销。",
+    "cat_personal": "个人",
+    "cat_work": "工作",
+    "cat_tech": "技术",
+    "cat_health": "健康",
+    "cat_social": "社交",
+    "cat_other": "其他",
+    "autoExtracted": "自动",
+    "manualAdded": "手动"
   },
   "update": {
     "checkNow": "检查更新",
@@ -284,16 +362,48 @@
     "readyDesc": "重启即可完成更新。",
     "restart": "立即重启"
   },
+  "onboarding": {
+    "title": "欢迎使用 Rivertide",
+    "subtitle": "告诉我一些关于你的信息，让我能给你更好的回答。",
+    "skip": "跳过",
+    "next": "下一步",
+    "done": "开始使用",
+    "q1": "你叫什么名字？或希望我怎么称呼你？",
+    "q1Placeholder": "例如：小王、Alex...",
+    "q2": "你有什么需要我了解的医疗诊断或情况吗？",
+    "q2Placeholder": "例如：ADHD、焦虑、糖尿病...（选填）",
+    "q3": "你是做什么工作或学习的？",
+    "q3Placeholder": "例如：软件工程师、学生、设计师...",
+    "q4": "还有其他想让我了解的事情吗？",
+    "q4Placeholder": "例如：你会说的语言、爱好、目标...（选填）"
+  },
+  "onboarding": {
+    "title": "Welcome to Rivertide",
+    "subtitle": "Tell me a bit about yourself so I can give you better answers.",
+    "skip": "Skip",
+    "next": "Next",
+    "done": "Get Started",
+    "q1": "What's your name or how would you like to be addressed?",
+    "q1Placeholder": "e.g. Alex",
+    "q2": "Any medical diagnoses or conditions you'd like me to know about?",
+    "q2Placeholder": "e.g. ADHD, anxiety, diabetes... (optional)",
+    "q3": "What do you do for work or study?",
+    "q3Placeholder": "e.g. Software engineer, student, designer...",
+    "q4": "Anything else you'd like me to know about you?",
+    "q4Placeholder": "e.g. Languages you speak, hobbies, goals... (optional)"
+  },
   "hotkey": {
     "pressNow": "请按下快捷键...",
     "blocked": "该组合键已被系统占用"
   },
   "common": {
     "close": "关闭",
+    "cancel": "取消",
     "clickToSet": "点击设置",
     "copy": "复制",
     "delete": "删除",
     "showPassword": "显示密码",
-    "hidePassword": "隐藏密码"
+    "hidePassword": "隐藏密码",
+    "clear": "清空"
   }
 }

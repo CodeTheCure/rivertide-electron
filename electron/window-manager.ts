@@ -28,6 +28,7 @@ export function createMainWindow() {
     frame: false,
     titleBarStyle: isMac ? 'hiddenInset' : 'default',
     ...(isMac ? { trafficLightPosition: { x: 12, y: 12 } } : {}),
+    icon: path.join(__dirname, isDev ? '../../public/icon.png' : '../../dist/icon.png'),
     backgroundColor: '#09090b',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -37,14 +38,19 @@ export function createMainWindow() {
     show: false,
   });
 
+  hardenWindow(state.mainWindow);
+
   if (isDev) {
     state.mainWindow.loadURL('http://localhost:5173');
+    state.mainWindow.show();
+    state.mainWindow.webContents.openDevTools();
+    state.mainWindow.webContents.on('console-message', (_e, level, msg) => {
+      console.log(`[renderer] ${msg}`);
+    });
   } else {
     state.mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    state.mainWindow.once('ready-to-show', () => state.mainWindow?.show());
   }
-
-  hardenWindow(state.mainWindow);
-  state.mainWindow.once('ready-to-show', () => state.mainWindow?.show());
 
   state.mainWindow.on('close', (e) => {
     if (!state.quitting) {

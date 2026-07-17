@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import logoSrc from '../../assets/logo.png';
 
 export function TitleBar() {
   const [maximized, setMaximized] = useState(false);
@@ -10,7 +11,7 @@ export function TitleBar() {
     return (
       <div className="flex items-center h-12 bg-white dark:bg-surface-950 border-b border-surface-200 dark:border-surface-800/60 px-4">
         <Logo />
-        <span className="text-sm font-semibold text-surface-700 dark:text-surface-300 ml-2">OpenType</span>
+        <span className="text-sm font-semibold text-surface-700 dark:text-surface-300 ml-2">Rivertide</span>
       </div>
     );
   }
@@ -43,13 +44,7 @@ export function TitleBar() {
 
 function Logo() {
   return (
-    <div className="w-5 h-5 rounded-md bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center flex-shrink-0">
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-        <line x1="12" y1="19" x2="12" y2="22"/>
-      </svg>
-    </div>
+    <img src={logoSrc} className="w-5 h-5 rounded flex-shrink-0" alt="" />
   );
 }
 

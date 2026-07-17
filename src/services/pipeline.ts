@@ -1,6 +1,5 @@
 /**
  * Full dictation pipeline: Audio → STT → LLM → Polished text.
- * This orchestrates the two-stage process.
  */
 
 import { AppConfig } from '../types/config';
@@ -13,10 +12,7 @@ export interface PipelineResult {
   processedText: string;
   skipped?: boolean;
   error?: string;
-  // Pipeline metadata for history
   systemPrompt?: string;
-  sttProvider?: string;
-  llmProvider?: string;
   sttModel?: string;
   llmModel?: string;
   sttDurationMs?: number;
@@ -25,17 +21,16 @@ export interface PipelineResult {
 
 export async function runPipeline(
   audioBuffer: ArrayBuffer,
-  config: AppConfig,
+  _config: AppConfig,
 ): Promise<PipelineResult> {
-  // If Electron is available, delegate the whole pipeline to main process
   if (window.electronAPI) {
     return window.electronAPI.processPipeline(audioBuffer);
   }
 
-  // Browser-mode pipeline (no timing / auto-learn in browser)
-  console.log('[Pipeline] Stage 1: STT...');
+  // Browser-mode pipeline
+  console.log('[Pipeline] Stage 1: STT (local Whisper)...');
   const sttStart = Date.now();
-  const stt = await transcribeAudio(audioBuffer, config);
+  const stt = await transcribeAudio(audioBuffer);
   const sttDurationMs = Date.now() - sttStart;
 
   if (!stt.success) {
@@ -47,20 +42,5 @@ export async function runPipeline(
     return { success: true, rawText: '', processedText: '', skipped: true, sttDurationMs };
   }
 
-  if (!config.llmPostProcessing) {
-    console.log('[Pipeline] LLM post-processing disabled');
-    return { success: true, rawText, processedText: rawText, sttDurationMs };
-  }
-
-  console.log('[Pipeline] Stage 2: LLM post-processing...');
-  const llmStart = Date.now();
-  const llm = await processText(rawText, config);
-  const llmDurationMs = Date.now() - llmStart;
-
-  if (!llm.success) {
-    return { success: false, rawText, processedText: '', error: llm.error, sttDurationMs, llmDurationMs };
-  }
-
-  const processedText = llm.text ?? rawText;
-  return { success: true, rawText, processedText, sttDurationMs, llmDurationMs };
+  return { success: true, rawText, processedText: rawText, sttDurationMs };
 }
