@@ -1,32 +1,55 @@
-# OpenType
+# River Tide
 
-Intelligent voice dictation for desktop. Speak naturally, get polished text.
+**Voice dictation for clearer thinking.** Built for anyone whose words don't come as easily as they used to — especially those navigating chemotherapy-induced cognitive impairment ("chemo brain").
 
-OpenType captures your voice, converts it to text via STT (Speech-to-Text), then uses LLM post-processing to clean up filler words, fix repetitions, detect self-corrections, and output polished, properly punctuated text.
+River Tide captures your voice, converts it to text, and polishes it — removing filler words, fixing repetitions, catching self-corrections, and adding proper punctuation. You speak naturally; it writes clearly.
+
+## Why River Tide
+
+Cognitive impairment — whether from chemotherapy, brain fog, long COVID, concussion, or other causes — can make communication exhausting. The words are there, but the path from thought to speech has extra hurdles.
+
+River Tide is designed to lower that hurdle. It's not about speed or productivity. It's about preserving your voice when your brain needs a hand. You speak as you are, stumbles and all, and the app turns it into clear, written text.
+
+**You speak naturally. River Tide writes clearly.**
+
+### Who it's for
+
+- **Cancer survivors** managing chemotherapy-induced cognitive impairment ("chemo brain")
+- **Anyone experiencing brain fog** from long COVID, medication, or chronic conditions
+- **People with aphasia or speech difficulties** who want a reliable bridge from thought to text
+- **Anyone who finds typing or composing difficult** and wants to speak instead
 
 ## How It Works
 
 ```
-[Microphone] → [STT/ASR] → [Raw Text] → [LLM Post-Processing] → [Polished Text] → [Clipboard/Cursor]
+[Microphone] → [STT/ASR] → [Raw Text] → [LLM Post-Processing] → [Polished Text] → [Cursor]
 ```
 
+River Tide uses a two-stage AI pipeline:
+
+1. **Speech-to-Text** — Your voice is transcribed by a high-accuracy STT model (SenseVoice, Whisper, or your choice)
+2. **LLM Post-Processing** — The raw transcript is polished: filler words removed, self-corrections resolved, repetition fixed, punctuation added
+
+The result is clean, readable text — pasted directly at your cursor.
+
 **Example:**
-- You say: *"嗯 那个 我想说的是 明天的会议 不对 是后天的会议改到周三下午两点"*
-- You get: *"后天的会议改到周三下午两点。"*
+- You say: *"I need to call — no wait, I need to email — um, the doctor about um, the appointment on um, Thursday — actually Friday"*
+- You get: *"I need to email the doctor about the appointment on Friday."*
 
 ## Features
 
-- **Two-stage AI pipeline** — STT transcription + LLM cleanup in one flow
-- **Multi-provider support** — SiliconFlow, OpenRouter, OpenAI (custom API keys, base URLs, models)
-- **Global hotkey** — `Ctrl+Shift+Space` to start/stop recording from any app
-- **Floating overlay** — Always-on-top recording indicator with waveform visualization
-- **Personal dictionary** — Teach OpenType your proper nouns and terminology
-- **App-aware tone** — Automatically adjusts tone based on active app (Slack → casual, Gmail → professional, VS Code → technical)
-- **Self-correction detection** — "Monday—no, Tuesday" becomes just "Tuesday"
-- **Filler word removal** — Strips um, uh, like, 那个, 嗯, etc.
-- **History tracking** — Searchable records with retention policies
-- **Personalization** — Formality and verbosity sliders that adapt to your style
-- **Cross-platform** — macOS, Windows, Linux
+| Feature | What it does |
+|---------|-------------|
+| **Self-correction detection** | "Monday—no, Tuesday" becomes just "Tuesday" |
+| **Filler word removal** | Strips um, uh, like, you know, and other verbal clutter |
+| **Repetition cleanup** | Detects and removes unintended repeated words |
+| **Auto-punctuation** | Adds proper punctuation so you don't have to think about it |
+| **Personal dictionary** | Learns your names, medication terms, and important vocabulary |
+| **Global hotkey** | Start/stop recording from any app with a single shortcut |
+| **Floating overlay** | Always-on-top recording indicator with waveform visualization |
+| **App-aware tone** | Automatically adjusts formality based on active app |
+| **History tracking** | Searchable records with configurable retention |
+| **Multi-provider** | Works with SiliconFlow, OpenRouter, and OpenAI |
 
 ## Quick Start
 
@@ -86,12 +109,12 @@ npm run electron:build:mac     # DMG (x64 + arm64)
 npm run electron:build:win     # NSIS installer
 ```
 
-Pre-built binaries are available on the [Releases](https://github.com/WEIFENG2333/OpenType/releases) page.
+Pre-built binaries are available on the [Releases](https://github.com/CodeTheCure/rivertide-electron/releases) page.
 
 ## Project Structure
 
 ```
-OpenType/
+Rivertide/
 ├── electron/                  # Electron main process
 │   ├── main.ts               # Window management, tray, shortcuts, IPC
 │   ├── preload.ts            # contextBridge API
@@ -132,27 +155,6 @@ All services work in two modes:
 | Language | Input/output language, multi-language mixing |
 | Privacy | History on/off, retention period, clear data |
 | Advanced | Toggle individual AI features |
-
-### LLM System Prompt
-
-The post-processing prompt is dynamically built from user settings:
-
-```
-Base rules (filler removal, repetition, self-correction, formatting)
-+ Output language preference
-+ Personalization (formality/verbosity)
-+ Personal dictionary terms
-+ Tone context (based on active app)
-+ Custom tone prompts
-```
-
-## Tech Stack
-
-- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, Zustand
-- **Desktop**: Electron 32, electron-builder
-- **STT**: SiliconFlow SenseVoice / OpenAI Whisper
-- **LLM**: Qwen, Gemini, GPT, DeepSeek, Llama (via provider APIs)
-- **CI/CD**: GitHub Actions (type check, build, cross-platform release)
 
 ## License
 
