@@ -57,7 +57,7 @@ jobs:
         run: npm run build
 
       - name: Build Electron app
-        run: npx electron-builder --${{ matrix.platform }}
+        run: npx electron-builder --${{ matrix.platform }} -p never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -72,6 +72,8 @@ jobs:
             release/*.deb
             release/*.exe
             release/*.msi
+            release/*.yml
+            release/*.blockmap
 
   publish:
     needs: build
@@ -93,10 +95,10 @@ jobs:
 
             | Platform | File |
             |----------|------|
-            | **Windows** | `OpenType-Setup-*.exe` |
-            | **macOS (Apple Silicon)** | `OpenType-*-arm64.dmg` |
-            | **macOS (Intel)** | `OpenType-*.dmg` _(not arm64)_ |
-            | **Linux** | `OpenType-*.AppImage` |
+            | **Windows** | `Rivertide-Setup-*.exe` or `Rivertide.Setup-*.exe` |
+            | **macOS (Apple Silicon)** | `Rivertide-*-arm64.dmg` |
+            | **macOS (Intel)** | `Rivertide-*.dmg` _(not arm64)_ |
+            | **Linux** | `Rivertide-*.AppImage` or `rivertide_*.deb` |
 
             > Other files (`.yml`, `.blockmap`) are used for auto-updates — you can ignore them.
 
