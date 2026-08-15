@@ -40,7 +40,10 @@ jobs:
 
       - name: Sync version from git tag
         run: |
-          REF="${GITHUB_EVENT_INPUTS_REF:-${GITHUB_REF#refs/tags/v}}"
+          REF="${{ github.event.inputs.ref || '' }}"
+          if [ -z "$REF" ]; then
+            REF="${GITHUB_REF#refs/tags/v}"
+          fi
           REF="${REF#refs/tags/v}"
           REF="${REF#v}"
           echo "Syncing package.json version to $REF"
