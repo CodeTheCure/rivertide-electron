@@ -6,7 +6,7 @@ import { state, isDev, isMac } from './app-state';
 function hardenWindow(win: BrowserWindow) {
   // Block in-app navigation to foreign origins
   win.webContents.on('will-navigate', (e, url) => {
-    const allowed = isDev ? 'http://localhost:5173' : `file://${path.join(__dirname, '..')}`;
+    const allowed = isDev ? 'http://localhost:5173' : `file://${path.join(__dirname, '../..')}`;
     if (!url.startsWith(allowed)) {
       e.preventDefault();
       shell.openExternal(url);
@@ -48,7 +48,7 @@ export function createMainWindow() {
       console.log(`[renderer] ${msg}`);
     });
   } else {
-    state.mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    state.mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'));
     state.mainWindow.once('ready-to-show', () => state.mainWindow?.show());
   }
 
@@ -92,7 +92,7 @@ export function createOverlayWindow() {
   if (url) {
     state.overlayWindow.loadURL(url);
   } else {
-    state.overlayWindow.loadFile(path.join(__dirname, '../dist/index.html'), { hash: '/overlay' });
+    state.overlayWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: '/overlay' });
   }
 
   hardenWindow(state.overlayWindow);

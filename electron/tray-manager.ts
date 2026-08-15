@@ -4,8 +4,8 @@ import { state, isDev } from './app-state';
 
 export function createTray(onToggleRecording: () => void) {
   const iconPath = isDev
-    ? path.join(__dirname, '../public/icon.png')
-    : path.join(__dirname, '../dist/icon.png');
+    ? path.join(__dirname, '../../public/icon.png')
+    : path.join(__dirname, '../../dist/icon.png');
 
   let icon: Electron.NativeImage;
   try {
