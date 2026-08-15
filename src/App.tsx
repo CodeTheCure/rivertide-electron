@@ -30,6 +30,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const theme = useConfigStore((s) => s.config.theme);
   const uiLanguage = useConfigStore((s) => s.config.uiLanguage);
+  const onboardingCompleted = useConfigStore((s) => s.config.onboardingCompleted);
   const loaded = useConfigStore((s) => s.loaded);
   const load = useConfigStore((s) => s.load);
   const { setLocale } = useTranslation();
@@ -84,10 +85,10 @@ export default function App() {
   }
 
   // Show onboarding if not completed
-  if (!useConfigStore.getState().config.onboardingCompleted) {
+  if (!onboardingCompleted) {
     return (
       <div className="h-screen flex flex-col bg-white dark:bg-surface-950">
-        <OnboardingPage onComplete={() => window.location.reload()} />
+        <OnboardingPage onComplete={() => {}} />
       </div>
     );
   }
