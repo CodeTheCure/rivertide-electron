@@ -187,11 +187,15 @@ export class WhisperService {
           const archivePath = path.join(tmpDir, `whisper-bin-${Date.now()}.tar.gz`);
           fs.writeFileSync(archivePath, buf);
           execSync(`tar -xzf "${archivePath}" -C "${tmpDir}"`, { timeout: 30000 });
-          const extracted = path.join(tmpDir, 'whisper-bin-ubuntu-x64', 'whisper-cli');
-          const bin = fs.readFileSync(extracted);
-          fs.rmSync(path.join(tmpDir, 'whisper-bin-ubuntu-x64'), { recursive: true, force: true });
+          const releaseDir = path.join(tmpDir, 'whisper-bin-ubuntu-x64');
+          const binDir = getBinaryDir();
+          fs.copyFileSync(path.join(releaseDir, 'whisper-cli'), path.join(binDir, 'whisper-cli'));
+          for (const f of fs.readdirSync(releaseDir)) {
+            if (f.includes('.so')) fs.copyFileSync(path.join(releaseDir, f), path.join(binDir, f));
+          }
+          fs.rmSync(releaseDir, { recursive: true, force: true });
           fs.unlinkSync(archivePath);
-          return bin;
+          return fs.readFileSync(path.join(binDir, 'whisper-cli'));
         },
       },
       'linux-arm64': {
@@ -201,11 +205,15 @@ export class WhisperService {
           const archivePath = path.join(tmpDir, `whisper-bin-${Date.now()}.tar.gz`);
           fs.writeFileSync(archivePath, buf);
           execSync(`tar -xzf "${archivePath}" -C "${tmpDir}"`, { timeout: 30000 });
-          const extracted = path.join(tmpDir, 'whisper-bin-ubuntu-arm64', 'whisper-cli');
-          const bin = fs.readFileSync(extracted);
-          fs.rmSync(path.join(tmpDir, 'whisper-bin-ubuntu-arm64'), { recursive: true, force: true });
+          const releaseDir = path.join(tmpDir, 'whisper-bin-ubuntu-arm64');
+          const binDir = getBinaryDir();
+          fs.copyFileSync(path.join(releaseDir, 'whisper-cli'), path.join(binDir, 'whisper-cli'));
+          for (const f of fs.readdirSync(releaseDir)) {
+            if (f.includes('.so')) fs.copyFileSync(path.join(releaseDir, f), path.join(binDir, f));
+          }
+          fs.rmSync(releaseDir, { recursive: true, force: true });
           fs.unlinkSync(archivePath);
-          return bin;
+          return fs.readFileSync(path.join(binDir, 'whisper-cli'));
         },
       },
       'win32-x64': {
@@ -217,11 +225,15 @@ export class WhisperService {
           const extractDir = path.join(tmpDir, `whisper-extract-${Date.now()}`);
           fs.mkdirSync(extractDir, { recursive: true });
           execSync(`powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${extractDir}'"`, { timeout: 30000 });
-          const binPath = path.join(extractDir, 'whisper-cli.exe');
-          const bin = fs.readFileSync(binPath);
+          const releaseDir = path.join(extractDir, 'Release');
+          const binDir = getBinaryDir();
+          fs.copyFileSync(path.join(releaseDir, 'whisper-cli.exe'), path.join(binDir, 'whisper-cli.exe'));
+          for (const f of fs.readdirSync(releaseDir)) {
+            if (f.endsWith('.dll')) fs.copyFileSync(path.join(releaseDir, f), path.join(binDir, f));
+          }
           fs.rmSync(extractDir, { recursive: true, force: true });
           fs.unlinkSync(archivePath);
-          return bin;
+          return fs.readFileSync(path.join(binDir, 'whisper-cli.exe'));
         },
       },
     };
