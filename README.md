@@ -18,6 +18,7 @@ River Tide is designed to lower that hurdle. It's not about speed or productivit
 - **Anyone experiencing brain fog** from long COVID, medication, or chronic conditions
 - **People with aphasia or speech difficulties** who want a reliable bridge from thought to text
 - **Anyone who finds typing or composing difficult** and wants to speak instead
+- **Professionals who prefer speaking over typing** to capture ideas faster
 
 ## How It Works
 
