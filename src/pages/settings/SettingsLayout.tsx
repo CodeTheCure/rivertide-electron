@@ -22,9 +22,10 @@ const tabs: Array<{ id: SettingsTab; i18nKey: string; descKey: string }> = [
 
 interface SettingsModalProps {
   onClose: () => void;
+  onOpenGuide?: () => void;
 }
 
-export function SettingsModal({ onClose }: SettingsModalProps) {
+export function SettingsModal({ onClose, onOpenGuide }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('providers');
   const { t } = useTranslation();
 
@@ -41,7 +42,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'providers': return <ProviderSettings />;
+      case 'providers': return <ProviderSettings onOpenGuide={onOpenGuide} />;
       case 'general': return <GeneralSettings />;
       case 'context': return <ContextSettings />;
       case 'hotkey': return <HotkeySettings />;

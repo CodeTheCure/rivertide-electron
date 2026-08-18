@@ -149,9 +149,6 @@ export interface ElectronAPI {
   getLastContext: () => Promise<CapturedContext>;
   checkAccessibility: () => Promise<string>;
   requestAccessibility: () => Promise<boolean>;
-  checkScreenPermission: () => Promise<string>;
-  openScreenPrefs: () => Promise<boolean>;
-  captureAndOcr: () => Promise<string | null>;
 
   // ─── Whisper download progress events ────────────
   onWhisperDownloadProgress: (callback: (percent: number) => void) => () => void;

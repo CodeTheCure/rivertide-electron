@@ -9,7 +9,7 @@
 export const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 
 /** Groq model to use for LLM post-processing */
-export const GROQ_MODEL = 'qwen/qwen3-32b';
+export const GROQ_MODEL = 'openai/gpt-oss-20b';
 
 /** Favourite local Whisper model (GGML format) */
 export const WHISPER_MODEL = 'ggml-small.bin';

@@ -11,6 +11,7 @@ import { ChatPage } from './pages/ChatPage';
 import { KnowledgeGraphPage } from './pages/KnowledgeGraphPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { OnboardingPage } from './pages/OnboardingPage';
+import { GroqGuidePage } from './pages/GroqGuidePage';
 import { SettingsModal } from './pages/settings/SettingsLayout';
 import { OverlayPage } from './pages/OverlayPage';
 import { UpdateNotification } from './components/UpdateNotification';
@@ -102,6 +103,7 @@ export default function App() {
       case 'chat': return <ChatPage />;
       case 'knowledgeGraph': return <KnowledgeGraphPage />;
       case 'analytics': return <AnalyticsPage />;
+      case 'guide': return <GroqGuidePage onOpenSettings={() => setSettingsOpen(true)} />;
     }
   };
 
@@ -120,7 +122,15 @@ export default function App() {
       </div>
 
       {/* Settings Modal */}
-      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <SettingsModal
+          onClose={() => setSettingsOpen(false)}
+          onOpenGuide={() => {
+            setSettingsOpen(false);
+            setPage('guide');
+          }}
+        />
+      )}
 
       <UpdateNotification />
     </div>

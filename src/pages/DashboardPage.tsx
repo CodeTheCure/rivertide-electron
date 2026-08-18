@@ -8,13 +8,12 @@ import logoSrc from '../assets/logo.png';
 /* ── Permission warning banner ── */
 function PermissionWarnings() {
   const contextL1Enabled = useConfigStore((s) => s.config.contextL1Enabled);
-  const contextOcrEnabled = useConfigStore((s) => s.config.contextOcrEnabled);
   const { t } = useTranslation();
-  const [missing, setMissing] = useState<('mic' | 'accessibility' | 'screen')[]>([]);
+  const [missing, setMissing] = useState<('mic' | 'accessibility')[]>([]);
 
   useEffect(() => {
     if (!window.electronAPI) return;
-    const results: ('mic' | 'accessibility' | 'screen')[] = [];
+    const results: ('mic' | 'accessibility')[] = [];
     const checks: Promise<void>[] = [];
 
     checks.push(
@@ -29,15 +28,8 @@ function PermissionWarnings() {
         })
       );
     }
-    if (contextOcrEnabled) {
-      checks.push(
-        window.electronAPI.checkScreenPermission().then((s) => {
-          if (s !== 'granted') results.push('screen');
-        })
-      );
-    }
     Promise.all(checks).then(() => setMissing(results));
-  }, [contextL1Enabled, contextOcrEnabled]);
+  }, [contextL1Enabled]);
 
   if (missing.length === 0) return null;
 
@@ -47,9 +39,6 @@ function PermissionWarnings() {
   }
   if (missing.includes('accessibility')) {
     items.push({ key: 'acc', text: t('dashboard.permAccessibilityNeeded'), action: t('dashboard.permAccessibilityAction'), onClick: () => window.electronAPI?.requestAccessibility() });
-  }
-  if (missing.includes('screen')) {
-    items.push({ key: 'scr', text: t('dashboard.permScreenNeeded'), action: t('dashboard.permScreenAction'), onClick: () => window.electronAPI?.openScreenPrefs() });
   }
 
   return (

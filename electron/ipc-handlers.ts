@@ -1,12 +1,11 @@
 import { app, ipcMain, clipboard, globalShortcut, systemPreferences, screen, shell } from 'electron';
-import { exec, execSync } from 'child_process';
+import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { autoUpdater } from 'electron-updater';
 import { state, isMac } from './app-state';
 import { errMsg } from './utils';
 import { registerShortcuts, toggleRecording } from './shortcut-manager';
-import { captureScreenAndOcr } from './context-capture';
 import { restartFnMonitor } from './fn-monitor';
 import { schedulePostPipelineExtraction, recordTypedText } from './auto-dict';
 import { schedulePostPipelineKG } from './knowledge-graph-extractor';
@@ -482,34 +481,6 @@ export function setupIPC() {
   ipcMain.handle('context:requestAccessibility', () => {
     if (!isMac) return true;
     return systemPreferences.isTrustedAccessibilityClient(true);
-  });
-
-  ipcMain.handle('context:checkScreenPermission', () => {
-    if (!isMac) return 'granted';
-    const tmpPath = path.join(app.getPath('temp'), `rivertide-perm-test-${Date.now()}.jpg`);
-    try {
-      execSync(`screencapture -x -t jpg "${tmpPath}"`, { timeout: 2000 });
-      const size = fs.existsSync(tmpPath) ? fs.statSync(tmpPath).size : 0;
-      return size > 100 ? 'granted' : 'denied';
-    } catch { return 'denied'; }
-    finally { try { fs.unlinkSync(tmpPath); } catch {} }
-  });
-
-  ipcMain.handle('context:openScreenPrefs', () => {
-    if (isMac) exec('open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"');
-    return true;
-  });
-
-  ipcMain.handle('context:captureAndOcr', async () => {
-    const cfg = state.configStore!.getAll();
-    if (!cfg.contextOcrEnabled) return null;
-    try {
-      const result = await captureScreenAndOcr();
-      return result?.text || null;
-    } catch (e) {
-      console.error('[Context OCR] error:', errMsg(e));
-      return null;
-    }
   });
 
   // ─── Shell: Show item in folder ───────────────────────────────────

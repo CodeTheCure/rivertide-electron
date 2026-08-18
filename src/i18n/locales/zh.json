@@ -43,9 +43,7 @@
     "permMicNeeded": "未授予麦克风权限",
     "permMicAction": "授权",
     "permAccessibilityNeeded": "读取选中文本需要辅助功能权限",
-    "permAccessibilityAction": "授权",
-    "permScreenNeeded": "屏幕 OCR 需要屏幕录制权限 ── 请授权给启动本应用的终端，然后重启",
-    "permScreenAction": "打开设置"
+    "permAccessibilityAction": "授权"
   },
   "dictation": {
     "title": "语音听写",
@@ -159,8 +157,6 @@
       "sttModelDesc": "语音转文字模型，更大的模型更准确但更慢",
       "llmModel": "LLM 模型",
       "llmModelDesc": "纯文本模型，用于润色转录、移除填充词和调整语气",
-      "vlmModel": "VLM 模型",
-      "vlmModelDesc": "支持图片+文本输入的模型，用于理解屏幕内容",
       "testConnection": "测试连接",
       "testError": "测试失败",
       "clickToCopy": "复制",
@@ -172,10 +168,11 @@
       "sttTitle": "STT 语音识别",
       "sttTooltip": "将语音转为原始文字，这是第一步——选择支持你所用语言的提供商。",
       "llmTitle": "LLM 大模型",
-      "llmTooltip": "润色转录文本、移除填充词、应用语气规则，同时为屏幕上下文识别（VLM）提供支持。",
+      "llmTooltip": "润色转录文本、移除填充词并应用语气规则。",
       "modelDownloaded": "已下载",
       "download": "下载",
-      "ready": "就绪"
+      "ready": "就绪",
+      "groqGuideLink": "没有密钥？查看如何免费获取 Groq API 密钥"
     },
     "general": {
       "description": "外观、启动行为和输入输出偏好设置。",
@@ -271,12 +268,8 @@
     "activeWindowDesc": "检测当前活跃应用（如 Slack、VS Code），自动匹配相应的写作风格",
     "selectedTextToggle": "输入框感知",
     "selectedTextDesc": "读取选中文本、输入框内容和光标位置，帮助 AI 理解你正在编辑的内容。需要辅助功能权限。",
-    "screenOcrToggle": "捕获屏幕上下文",
-    "screenOcrDesc": "截取屏幕并通过视觉模型（VLM）理解你正在做什么。需要屏幕录制权限，并在提供商设置中配置 VLM 模型。",
     "accessibilityGranted": "辅助功能权限已授权",
     "accessibilityNeeded": "需要辅助功能权限 — 点击授权",
-    "screenGranted": "屏幕录制权限已授权",
-    "screenNeeded": "需要屏幕录制权限 — 点击打开设置",
     "autoLearnToggle": "自动从转录中学习词条",
     "autoLearnDesc": "从转录中检测专有名词、品牌名和技术术语，自动添加到个人词典"
   },
@@ -395,6 +388,47 @@
   "hotkey": {
     "pressNow": "请按下快捷键...",
     "blocked": "该组合键已被系统占用"
+  },
+  "guide": {
+    "title": "Groq API 密钥指南",
+    "subtitle": "免费获取 Groq API 密钥，为 Rivertide 提供 AI 文本润色能力。",
+    "purposeTitle": "这个密钥的用途",
+    "purposeBody": "Rivertide 调用 Groq 云端 API 润色转录文本——移除填充词、修正重复、添加标点，并根据你的规则调整语气。",
+    "purposeModel": "当前润色模型：{model}",
+    "openConsole": "打开 Groq 控制台",
+    "openKeysPage": "打开 API Keys 页面",
+    "openSettings": "打开设置",
+    "finalHint": "将密钥粘贴到 设置 → API 提供商 → Groq 中。",
+    "steps": {
+      "1": {
+        "title": "打开 Groq 控制台",
+        "body": "在浏览器中访问 console.groq.com，在这里创建账户并管理 API 密钥。"
+      },
+      "2": {
+        "title": "注册或登录",
+        "body": "使用 Google、GitHub、SSO 或邮箱免费创建账户，无需信用卡。"
+      },
+      "3": {
+        "title": "进入 API Keys",
+        "body": "点击左侧边栏中的“API Keys”，也可以直接访问 console.groq.com/keys。"
+      },
+      "4": {
+        "title": "创建 API 密钥",
+        "body": "点击“Create API key”，填写一个易识别的名称（例如“Rivertide”），然后点击创建。"
+      },
+      "5": {
+        "title": "复制密钥",
+        "body": "密钥只会显示一次，以 gsk_ 开头。请立即复制——出于安全考虑，Groq 不会再次显示它。"
+      },
+      "6": {
+        "title": "粘贴到 Rivertide",
+        "body": "打开 设置 → API 提供商 → Groq，将密钥粘贴到 API 密钥输入框，然后点击“测试连接”验证。"
+      }
+    },
+    "securityTitle": "温馨提示",
+    "securityLocal": "密钥仅保存在本机，并且只在 Rivertide 发起请求时发送到 api.groq.com。",
+    "securityLost": "如果密钥丢失，在控制台删除并重新创建一个即可，无需等待。",
+    "securityShare": "切勿分享密钥或将密钥提交到代码仓库。任何拿到密钥的人都可以消耗你的 Groq 配额。"
   },
   "common": {
     "close": "关闭",

@@ -43,9 +43,7 @@
     "permMicNeeded": "Microphone permission not granted",
     "permMicAction": "Grant",
     "permAccessibilityNeeded": "Accessibility permission needed for reading selected text",
-    "permAccessibilityAction": "Grant",
-    "permScreenNeeded": "Screen recording permission needed for OCR — grant to your terminal app, then restart",
-    "permScreenAction": "Open Settings"
+    "permAccessibilityAction": "Grant"
   },
   "dictation": {
     "title": "Voice Dictation",
@@ -159,8 +157,6 @@
       "sttModelDesc": "The speech recognition model. Larger models are more accurate but slower.",
       "llmModel": "LLM Model",
       "llmModelDesc": "Text-only model for polishing transcriptions, removing fillers, and adjusting tone.",
-      "vlmModel": "VLM Model",
-      "vlmModelDesc": "Accepts image + text input, used for understanding screen content.",
       "testConnection": "Test Connection",
       "testError": "Test failed",
       "clickToCopy": "Copy",
@@ -172,10 +168,11 @@
       "sttTitle": "Speech Recognition",
       "sttTooltip": "Converts your voice into raw text. This is the first step — choose a provider that supports your language.",
       "llmTitle": "LLM",
-      "llmTooltip": "Polishes transcriptions, removes fillers, applies tone rules, and powers screen context understanding (VLM).",
+      "llmTooltip": "Polishes transcriptions, removes fillers, and applies tone rules.",
       "modelDownloaded": "Downloaded",
       "download": "Download",
-      "ready": "Ready"
+      "ready": "Ready",
+      "groqGuideLink": "Need a key? See how to get a free Groq API key"
     },
     "general": {
       "description": "Appearance, startup behavior, and input/output preferences.",
@@ -271,12 +268,8 @@
     "activeWindowDesc": "Detect the active app (e.g. Slack, VS Code) and automatically match the writing tone to the context",
     "selectedTextToggle": "Input field awareness",
     "selectedTextDesc": "Read selected text, field content, and cursor position to help the AI understand what you're editing. Requires accessibility permission.",
-    "screenOcrToggle": "Capture screen context",
-    "screenOcrDesc": "Capture your screen and use a vision model (VLM) to understand what you're working on. Requires screen recording permission and a VLM model configured in provider settings.",
     "accessibilityGranted": "Accessibility permission granted",
     "accessibilityNeeded": "Accessibility permission required — click to grant",
-    "screenGranted": "Screen recording permission granted",
-    "screenNeeded": "Screen recording permission required — click to open settings",
     "autoLearnToggle": "Auto-learn terms from transcriptions",
     "autoLearnDesc": "Detect proper nouns, brand names, and technical terms from transcriptions and add them to your dictionary automatically"
   },
@@ -380,6 +373,47 @@
   "hotkey": {
     "pressNow": "Press your shortcut now...",
     "blocked": "This combination is reserved"
+  },
+  "guide": {
+    "title": "Groq API Key Guide",
+    "subtitle": "Set up a free Groq API key to power AI text polishing in Rivertide.",
+    "purposeTitle": "What this key is used for",
+    "purposeBody": "Rivertide calls the Groq cloud API to polish your transcriptions — removing fillers, fixing repetitions, adding punctuation, and adjusting tone based on your rules.",
+    "purposeModel": "Active polishing model: {model}",
+    "openConsole": "Open Groq Console",
+    "openKeysPage": "Open API Keys page",
+    "openSettings": "Open Settings",
+    "finalHint": "Paste the key in Settings → API Providers → Groq.",
+    "steps": {
+      "1": {
+        "title": "Open the Groq Console",
+        "body": "In your browser, go to console.groq.com. This is where you'll create your account and manage API keys."
+      },
+      "2": {
+        "title": "Sign up or log in",
+        "body": "Create a free account with Google, GitHub, SSO, or email. No credit card is required."
+      },
+      "3": {
+        "title": "Go to API Keys",
+        "body": "Click \"API Keys\" in the left sidebar. You can also jump straight to console.groq.com/keys."
+      },
+      "4": {
+        "title": "Create an API key",
+        "body": "Click \"Create API key\", give it a recognizable name (e.g. \"Rivertide\"), then click Create."
+      },
+      "5": {
+        "title": "Copy the key",
+        "body": "Your key appears once and starts with gsk_. Copy it right away — for security, Groq won't show it again."
+      },
+      "6": {
+        "title": "Paste it into Rivertide",
+        "body": "Open Settings → API Providers → Groq, paste the key into the API Key field, then click \"Test Connection\" to verify."
+      }
+    },
+    "securityTitle": "Good to know",
+    "securityLocal": "Your key is stored locally on this device and is only sent to api.groq.com when Rivertide makes a request.",
+    "securityLost": "If you lose a key, delete it in the console and create a new one — you don't need to wait for anything.",
+    "securityShare": "Never share your key or commit it to source control. Anyone with it can spend your Groq quota."
   },
   "common": {
     "close": "Close",

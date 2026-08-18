@@ -3,7 +3,7 @@ import { useConfigStore } from '../../stores/configStore';
 import { useTranslation } from '../../i18n';
 import logoSrc from '../../assets/logo.png';
 
-export type PageID = 'dashboard' | 'dictation' | 'history' | 'dictionary' | 'chat' | 'knowledgeGraph' | 'analytics';
+export type PageID = 'dashboard' | 'dictation' | 'history' | 'dictionary' | 'chat' | 'knowledgeGraph' | 'analytics' | 'guide';
 
 interface SidebarProps {
   current: PageID;

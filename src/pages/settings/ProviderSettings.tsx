@@ -6,7 +6,7 @@ import { WHISPER_MODEL_DISPLAY, WHISPER_MODEL_SIZE_MB } from '../../types/config
 
 type DownloadStatus = 'idle' | 'downloading' | 'done' | 'error';
 
-export function ProviderSettings() {
+export function ProviderSettings({ onOpenGuide }: { onOpenGuide?: () => void }) {
   const config = useConfigStore((s) => s.config);
   const set = useConfigStore((s) => s.set);
   const { t } = useTranslation();
@@ -172,6 +172,18 @@ export function ProviderSettings() {
             placeholder="gsk_..."
           />
         </SettingRow>
+
+        {onOpenGuide && (
+          <button
+            onClick={onOpenGuide}
+            className="inline-flex items-center gap-1 text-xs text-brand-500 hover:text-brand-400 transition-colors"
+          >
+            {t('settings.providers.groqGuideLink')}
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14"/><polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </button>
+        )}
 
         <div className="flex items-center gap-3 pt-1 flex-wrap">
           <Button variant="secondary" size="sm" onClick={handleTest} loading={testing} disabled={testing}>

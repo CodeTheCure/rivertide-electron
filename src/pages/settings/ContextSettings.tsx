@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useConfigStore } from '../../stores/configStore';
 import { Toggle } from '../../components/ui';
 import { useTranslation } from '../../i18n';
@@ -48,16 +48,10 @@ export function ContextSettings() {
   const { config, set } = useConfigStore();
   const { t } = useTranslation();
   const [accessibilityStatus, setAccessibilityStatus] = useState<string>('');
-  const [screenStatus, setScreenStatus] = useState<string>('');
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Cleanup polling timer on unmount
   useEffect(() => {
     window.electronAPI?.checkAccessibility().then(setAccessibilityStatus);
-    window.electronAPI?.checkScreenPermission().then(setScreenStatus);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
   }, []);
 
   const handleRequestAccessibility = async () => {
@@ -66,25 +60,6 @@ export function ContextSettings() {
       const status = await window.electronAPI?.checkAccessibility();
       if (status) setAccessibilityStatus(status);
     }, 1000);
-  };
-
-  const handleRequestScreen = async () => {
-    await window.electronAPI?.openScreenPrefs();
-    // Clear any previous poll before starting a new one
-    if (pollRef.current) clearInterval(pollRef.current);
-    // Poll for permission change after user visits settings
-    pollRef.current = setInterval(async () => {
-      const status = await window.electronAPI?.checkScreenPermission();
-      if (status === 'granted') {
-        setScreenStatus('granted');
-        if (pollRef.current) clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    }, 2000);
-    setTimeout(() => {
-      if (pollRef.current) clearInterval(pollRef.current);
-      pollRef.current = null;
-    }, 30000);
   };
 
   return (
@@ -107,21 +82,6 @@ export function ContextSettings() {
             grantedTip={t('context.accessibilityGranted')}
             neededTip={t('context.accessibilityNeeded')}
             onClick={handleRequestAccessibility}
-          />
-        ) : undefined}
-      />
-
-      <Toggle
-        checked={config.contextOcrEnabled}
-        onChange={(v) => set('contextOcrEnabled', v)}
-        label={t('context.screenOcrToggle')}
-        description={t('context.screenOcrDesc')}
-        badge={config.contextOcrEnabled ? (
-          <PermissionBadge
-            status={screenStatus}
-            grantedTip={t('context.screenGranted')}
-            neededTip={t('context.screenNeeded')}
-            onClick={handleRequestScreen}
           />
         ) : undefined}
       />

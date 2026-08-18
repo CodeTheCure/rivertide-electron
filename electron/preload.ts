@@ -104,9 +104,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getLastContext: () => ipcRenderer.invoke('context:getLastContext'),
   checkAccessibility: () => ipcRenderer.invoke('context:checkAccessibility'),
   requestAccessibility: () => ipcRenderer.invoke('context:requestAccessibility'),
-  checkScreenPermission: () => ipcRenderer.invoke('context:checkScreenPermission'),
-  openScreenPrefs: () => ipcRenderer.invoke('context:openScreenPrefs'),
-  captureAndOcr: () => ipcRenderer.invoke('context:captureAndOcr'),
 
   // Whisper download progress events
   onWhisperDownloadProgress: (cb: (percent: number) => void) => {
